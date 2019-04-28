@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-04-28 11:52:00 JST
+	Version : 2019-04-28 12:29:00 JST
 	USAGE
   exit 1
 }
@@ -68,8 +68,7 @@ message='学科掲示板が更新されました'
 if [ "$(getcsnews.sh)" -eq 1 ]; then
   cat "$Dir_dat/subscriber"                  |
   cut -d ' ' -f 1                            |
-  xargs -I @ dmtweet.sh -t @ "$message" 2>&1 |
-  cat                                        >>"$Dir_log/pubnews.sh.log"
+  xargs -I @ dmtweet.sh -t @ "$message" 2>&1 >>"$Dir_log/pubnews.sh.log"
 fi
 
 

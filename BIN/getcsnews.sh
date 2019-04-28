@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-04-28 12:21:00 JST
+	Version : 2019-04-28 12:29:00 JST
 	USAGE
   exit 1
 }
@@ -132,7 +132,7 @@ else
   fi                                      |
   sed 's/\r//'                            |
   grep '^Last-Modified:'                  >$Dir_tmp/boardcs_Last-Modified
-  [ ! -s $Tmp/boardcs_Last-Modified ] && error_exit 1 '掲示板の最終更新時刻が取得できません'
+  [ ! -s $Dir_tmp/boardcs_Last-Modified ] && error_exit 1 '掲示板の最終更新時刻が取得できません'
   flg_changed=1
 fi
 
