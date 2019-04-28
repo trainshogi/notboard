@@ -2,9 +2,9 @@
 
 ######################################################################
 #
-# GETCSNEWS.SH : 情報科掲示板から新着情報を取得する
+# GETCSNEWS.SH : 情報科掲示板に新着があるか確認する
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-04-22
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-04-28
 #
 ######################################################################
 
@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-04-22 15:01:00 JST
+	Version : 2019-04-28 11:22:00 JST
 	USAGE
   exit 1
 }
@@ -46,39 +46,13 @@ PATH="$Homedir/UTL:$Homedir/TOOL:$PATH" # for additional command
 . "$Homedir/CONFIG/COMMON.SHLIB"        # account infomation
 
 # === Confirm that the required commands exist =======================
-# TODO: curl,wgetに対応
 # --- 1.cURL or Wget
 if   type curl    >/dev/null 2>&1; then
-  # CMD_CURL='curl'
-  httpget() {
-    # $1:url
-    curl -s -u "$CS_id:$CS_pw" "$1" |
-    sed 's/\r//'
-  }
+  CMD_CURL='curl'
 elif type wget    >/dev/null 2>&1; then
-  #CMD_WGET='wget'
-  httpget() {
-    # $1:url
-    wget -q -O - --http-user="$CS_id" --http-passwd="$CS_pw" "$1" |
-    sed 's/\r//'
-  }
+  CMD_WGET='wget'
 else
   error_exit 1 'No HTTP-GET/POST command found.'
-fi
-# TOOD: iconv,nkfに対応
-# --- 2.iconv or nkf
-if   type iconv >/dev/null 2>&1; then
-  convcharset() {
-    # $1:from $2:to
-    :
-  }
-elif type nkf   >/dev/null 2>&1; then
-  convcharset() {
-    # $1:from $2:to
-    :
-  }
-else
-    error_exit 1 'No convert-encoding command found.'
 fi
 
 
@@ -103,27 +77,60 @@ trap 'exit_trap' EXIT HUP INT QUIT PIPE ALRM TERM
 Tmp=`mktemp -d -t "_${0##*/}.$$.XXXXXXXXXXX"` || error_exit 1 'Failed to mktemp'
 
 # --- 1.サイト情報の解析 ---------------------------------------------
-# --- 掲示板のURL
-board_url=$(curl -s -u "$CS_id:$CS_pw" "https://$url" |
-            sed 's/\r//'                              |
-            parsrx.sh                                 |
-            grep 'new\.html'                          |
-            cut -d ' ' -f 2                           )
+# --- 掲示板のパス
+board_path=$(if   [ -n "${CMD_WGET:-}" ]; then       #
+               "$CMD_WGET" -q -O -                   \
+                           --http-user="$CS_id"      \
+                           --http-password="$CS_pw"  \
+                           "https://$url"            #
+            elif [ -n "${CMD_CURL:-}" ]; then        #
+               "$CMD_CURL" -s                        \
+                           -u "$CS_id:$CS_pw"        \
+                           "https://$url"            #
+            fi                                       |
+            sed 's/\r//'                             |
+            parsrx.sh                                |
+            grep 'new\.html'                         |
+            cut -d ' ' -f 2                          )
 # --- 2.掲示板の更新確認 ---------------------------------------------
 flg_changed=0
 if [ -e $Dir_tmp/boardcs_Last-Modified ]; then
-    # 前の変更日時と異なっていれば，更新扱い
-    curl -sI -u "$CS_id:$CS_pw" "https://$url/$board_url" |
-    grep '^Last-Modified:'                                >$Tmp/boardcs_Last-Modified.current
-    if ! diff $Dir_tmp/boardcs_Last-Modified $Tmp/boardcs_Last-Modified.current; then
-        mv $Tmp/boardcs_Last-Modified.current $Dir_tmp/boardcs_Last-Modified
-        flg_changed=1
-    fi
-else
-    # 初めての取得であれば，更新扱い
-    curl -sI -u "$CS_id:$CS_pw" "https://$url/$board_url" |
-    grep '^Last-Modified:'                                >$Dir_tmp/boardcs_Last-Modified
+  # 前の変更日時と異なっていれば，更新扱い
+  if   [ -n "${CMD_WGET:-}" ]; then        #
+    "$CMD_WGET" -qS --spider -O -          \
+                --http-user="$CS_id"       \
+                --http-password="$CS_pw"   \
+                "https://$url$board_path"  \
+                2>&1                       #
+  elif [ -n "${CMD_CURL:-}" ]; then        #
+    "$CMD_CURL" -sI                        \
+                -u "$CS_id:$CS_pw"         \
+                "https://$url$board_path"  #
+  fi                                       |
+  sed 's/\r//'                             |
+  grep '^Last-Modified:'                   >$Tmp/boardcs_Last-Modified.current
+  if ! diff $Dir_tmp/boardcs_Last-Modified     \
+            $Tmp/boardcs_Last-Modified.current >/dev/null; then
+    mv $Tmp/boardcs_Last-Modified.current $Dir_tmp/boardcs_Last-Modified
     flg_changed=1
+  fi
+else
+  # 初めての取得であれば，更新扱い
+  if   [ -n "${CMD_WGET:-}" ]; then       #
+    "$CMD_WGET" -qS --spider -O -         \
+                --http-user="$CS_id"      \
+                --http-password="$CS_pw"  \
+                "https://$url$board_path" \
+                2>&1                      |
+    sed 's/^ *//'                         #
+  elif [ -n "${CMD_CURL:-}" ]; then       #
+    "$CMD_CURL" -sI                       \
+                -u "$CS_id:$CS_pw"        \
+                "https://$url$board_path" #
+  fi                                      |
+  sed 's/\r//'                            |
+  grep '^Last-Modified:'                  >$Dir_tmp/boardcs_Last-Modified
+  flg_changed=1
 fi
 
 # === 更新した旨を連絡 ===============================================
