@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-04-28 11:30:00 JST
+	Version : 2019-04-28 12:21:00 JST
 	USAGE
   exit 1
 }
@@ -92,6 +92,7 @@ board_path=$(if   [ -n "${CMD_WGET:-}" ]; then       #
             parsrx.sh                                |
             grep 'new\.html'                         |
             cut -d ' ' -f 2                          )
+[ -z "$board_path" ] && error_exit 1 '掲示一覧が見つかりません'
 # --- 2.掲示板の更新確認 ---------------------------------------------
 flg_changed=0
 if [ -e $Dir_tmp/boardcs_Last-Modified ]; then
@@ -109,6 +110,7 @@ if [ -e $Dir_tmp/boardcs_Last-Modified ]; then
   fi                                       |
   sed 's/\r//'                             |
   grep '^Last-Modified:'                   >$Tmp/boardcs_Last-Modified.current
+  [ ! -s $Tmp/boardcs_Last-Modified.current ] && error_exit 1 '掲示板の最終更新時刻が取得できません'
   if ! diff $Dir_tmp/boardcs_Last-Modified     \
             $Tmp/boardcs_Last-Modified.current >/dev/null; then
     mv $Tmp/boardcs_Last-Modified.current $Dir_tmp/boardcs_Last-Modified
@@ -130,17 +132,12 @@ else
   fi                                      |
   sed 's/\r//'                            |
   grep '^Last-Modified:'                  >$Dir_tmp/boardcs_Last-Modified
+  [ ! -s $Tmp/boardcs_Last-Modified ] && error_exit 1 '掲示板の最終更新時刻が取得できません'
   flg_changed=1
 fi
 
 # === 更新した旨を連絡 ===============================================
 echo $flg_changed
-# message='学科掲示板が更新されました'
-# if [ $flg_changed -eq 1 ]; then
-#     cat $Dir_dat/subscriber |
-#     cut -d ' ' -f 1         |
-#     xargs -I @ dmtweet.sh -t @ "$message" 2>"$Dir_log/getcsnews.sh.log"
-# fi
 
 
 ######################################################################
