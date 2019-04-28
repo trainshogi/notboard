@@ -1,0 +1,4 @@
+/TMP/*
+/LOG/*
+/CONFIG/COMMON.SHLIB
+!.gitkeep
