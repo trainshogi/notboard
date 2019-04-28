@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-04-28 11:22:00 JST
+	Version : 2019-04-28 11:30:00 JST
 	USAGE
   exit 1
 }
@@ -42,8 +42,8 @@ error_exit() {
 
 # === Detect home directory of this app. and define more =============
 Homedir="$(d=${0%/*}/; [ "_$d" = "_$0/" ] && d='./'; cd "$d.."; pwd)"
-PATH="$Homedir/UTL:$Homedir/TOOL:$PATH" # for additional command
-. "$Homedir/CONFIG/COMMON.SHLIB"        # account infomation
+PATH="$Homedir/TOOL:$PATH"       # for additional command
+. "$Homedir/CONFIG/COMMON.SHLIB" # 共通設定
 
 # === Confirm that the required commands exist =======================
 # --- 1.cURL or Wget
