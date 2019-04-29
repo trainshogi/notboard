@@ -4,7 +4,7 @@
 #
 # PUBNEWS.SH : 新着情報の連絡
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-04-28
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-04-29
 #
 ######################################################################
 
@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-04-28 12:29:00 JST
+	Version : 2019-04-29 13:39:24 JST
 	USAGE
   exit 1
 }
@@ -60,13 +60,24 @@ esac
 # Main Routine
 ######################################################################
 
-# === 配信可能か確認 =================================================
-[ ! -r "$Dir_dat/subscriber" ] && error_exit 1 'No subscriber found'
+# === tmpディレクトリの作成 ==========================================
+trap 'exit_trap' EXIT HUP INT QUIT PIPE ALRM TERM
+Tmp=`mktemp -d -t "_${0##*/}.$$.XXXXXXXXXXX"` || error_exit 1 'Failed to mktemp'
+
+# === 配信対象の特定 =================================================
+twfer.sh | sed 's/^.*(@\(.*\))$/\1/' | sort >$Tmp/follower
+if [ -r "$Dir_tmp/subscriber" ]; then
+  join -a 2 "$Dir_tmp/subscriber" $Tmp/follower >$Tmp/subscriber
+  mv $Tmp/subscriber "$Dir_tmp/subscriber"
+else
+  mv $Tmp/follower "$Dir_tmp/subscriber"
+fi
+[ ! -s "$Dir_tmp/subscriber" ] && error_exit 1 'No subscriber found'
 
 # === 学科掲示板から新着取得 =========================================
 message='学科掲示板が更新されました'
 if [ "$(getcsnews.sh)" -eq 1 ]; then
-  cat "$Dir_dat/subscriber"                  |
+  cat "$Dir_tmp/subscriber"                  |
   cut -d ' ' -f 1                            |
   xargs -I @ dmtweet.sh -t @ "$message" 2>&1 >>"$Dir_log/pubnews.sh.log"
 fi
