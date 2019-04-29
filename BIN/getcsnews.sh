@@ -4,7 +4,7 @@
 #
 # GETCSNEWS.SH : 情報科掲示板に新着があるか確認する
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-04-28
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-04-29
 #
 ######################################################################
 
@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-04-28 12:29:00 JST
+	Version : 2019-04-29 15:00:05 JST
 	USAGE
   exit 1
 }
@@ -95,7 +95,7 @@ board_path=$(if   [ -n "${CMD_WGET:-}" ]; then       #
 [ -z "$board_path" ] && error_exit 1 '掲示一覧が見つかりません'
 # --- 2.掲示板の更新確認 ---------------------------------------------
 flg_changed=0
-if [ -e $Dir_tmp/boardcs_Last-Modified ]; then
+if [ -e "$Dir_tmp/boardcs_Last-Modified" ]; then
   # 前の変更日時と異なっていれば，更新扱い
   if   [ -n "${CMD_WGET:-}" ]; then        #
     "$CMD_WGET" -qS --spider -O -          \
@@ -111,9 +111,9 @@ if [ -e $Dir_tmp/boardcs_Last-Modified ]; then
   sed 's/\r//'                             |
   grep '^Last-Modified:'                   >$Tmp/boardcs_Last-Modified.current
   [ ! -s $Tmp/boardcs_Last-Modified.current ] && error_exit 1 '掲示板の最終更新時刻が取得できません'
-  if ! diff $Dir_tmp/boardcs_Last-Modified     \
+  if ! diff "$Dir_tmp/boardcs_Last-Modified"   \
             $Tmp/boardcs_Last-Modified.current >/dev/null; then
-    mv $Tmp/boardcs_Last-Modified.current $Dir_tmp/boardcs_Last-Modified
+    mv $Tmp/boardcs_Last-Modified.current "$Dir_tmp/boardcs_Last-Modified"
     flg_changed=1
   fi
 else
@@ -131,12 +131,12 @@ else
                 "https://$url$board_path" #
   fi                                      |
   sed 's/\r//'                            |
-  grep '^Last-Modified:'                  >$Dir_tmp/boardcs_Last-Modified
-  [ ! -s $Dir_tmp/boardcs_Last-Modified ] && error_exit 1 '掲示板の最終更新時刻が取得できません'
+  grep '^Last-Modified:'                  >"$Dir_tmp/boardcs_Last-Modified"
+  [ ! -s "$Dir_tmp/boardcs_Last-Modified" ] && error_exit 1 '掲示板の最終更新時刻が取得できません'
   flg_changed=1
 fi
 
-# === 更新した旨を連絡 ===============================================
+# === 更新情報を返す =================================================
 echo $flg_changed
 
 

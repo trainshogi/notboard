@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-04-29 13:39:24 JST
+	Version : 2019-04-29 16:14:00 JST
 	USAGE
   exit 1
 }
@@ -74,12 +74,23 @@ else
 fi
 [ ! -s "$Dir_tmp/subscriber" ] && error_exit 1 'No subscriber found'
 
-# === 学科掲示板から新着取得 =========================================
-message='学科掲示板が更新されました'
+# === 新着情報を取得して配信 =========================================
+# --- 学科掲示板からの取得，配信 -------------------------------------
+message='学科の掲示板が更新されました'
 if [ "$(getcsnews.sh)" -eq 1 ]; then
-  cat "$Dir_tmp/subscriber"                  |
-  cut -d ' ' -f 1                            |
-  xargs -I @ dmtweet.sh -t @ "$message" 2>&1 >>"$Dir_log/pubnews.sh.log"
+  cat "$Dir_tmp/subscriber"             |
+  cut -d ' ' -f 1                       |
+  xargs -I @ dmtweet.sh -t @ "$message"
+fi
+
+# --- 学校掲示板からの取得，配信 -------------------------------------
+message=$(echo "$CAMPUS"           |
+          join "$Dir_dat/campus" - |
+          cut -d ' ' -f 2-         )の掲示板が更新されました
+if [ "$(gettuatnews.sh)" -eq 1 ]; then
+  cat "$Dir_tmp/subscriber"             |
+  cut -d ' ' -f 1                       |
+  xargs -I @ dmtweet.sh -t @ "$message"
 fi
 
 
