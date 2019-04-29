@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-04-29 15:00:15 JST
+	Version : 2019-04-29 16:13:00 JST
 	USAGE
   exit 1
 }
@@ -72,7 +72,12 @@ esac
 
 # === 掲示板情報を取得 ===============================================
 # --- 0.パラメータおよびtmpディレクトリの設定 ------------------------
-readonly url='http://t-board.office.tuat.ac.jp/T/boar/resAjax.php' # 掲示板のURL
+# 掲示板のURL
+readonly url=$(case "$CAMPUS" in                                                   #
+                 'A') echo 'http://t-board.office.tuat.ac.jp/A/boar/resAjax.php';; #
+                 'T') echo 'http://t-board.office.tuat.ac.jp/T/boar/resAjax.php';; #
+                 *)   error_exit 1 'キャンパス情報が不正です';;                    #
+               esac                                                                )
 trap 'exit_trap' EXIT HUP INT QUIT PIPE ALRM TERM
 Tmp=`mktemp -d -t "_${0##*/}.$$.XXXXXXXXXXX"` || error_exit 1 'Failed to mktemp'
 
