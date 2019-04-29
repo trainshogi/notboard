@@ -65,6 +65,13 @@ trap 'exit_trap' EXIT HUP INT QUIT PIPE ALRM TERM
 Tmp=`mktemp -d -t "_${0##*/}.$$.XXXXXXXXXXX"` || error_exit 1 'Failed to mktemp'
 
 # === 配信対象の特定 =================================================
+# --- 0.アカウントの正当性確認 ---------------------------------------
+used_twitter_id=$(grep MY_scname                                       \
+                       "$Homedir/TOOL/kotoriotoko/CONFIG/COMMON.SHLIB" |
+                  cut -d '=' -f 2                                      |
+                  sed "s/'//g"                                         )
+[ "$used_twitter_id" != "$twitter_id" ] && error_exit 1 '配信元情報の整合性がありません'
+# --- 1.フォロワの取得 -----------------------------------------------
 twfer.sh | sed 's/^.*(@\(.*\))$/\1/' | sort >$Tmp/follower
 if [ -r "$Dir_tmp/subscriber" ]; then
   join -a 2 "$Dir_tmp/subscriber" $Tmp/follower >$Tmp/subscriber

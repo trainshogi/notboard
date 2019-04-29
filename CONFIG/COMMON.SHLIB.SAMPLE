@@ -32,3 +32,4 @@ readonly CAMPUS='<T|A>' # 小金井キャンパスなら'T'、府中キャンパ
 ######################################################################
 
 PATH="$Homedir/TOOL/kotoriotoko/BIN:$PATH" # Path to kotoriotoko
+twitter_id='<your twitter id>'             # 配信元のTwitter ID
