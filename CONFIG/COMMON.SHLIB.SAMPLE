@@ -28,4 +28,4 @@ readonly CS_pw='<your passwd>'
 # 連絡に関する設定
 ######################################################################
 
-PATH="TOOL/kotoriotoko/BIN:$PATH" # Path to kotoriotoko
+PATH="$Homedir/TOOL/kotoriotoko/BIN:$PATH" # Path to kotoriotoko
