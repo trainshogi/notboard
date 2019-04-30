@@ -4,7 +4,7 @@
 #
 # GETCSNEWS.SH : 情報科掲示板に新着があるか確認する
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-04-29
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-04-30
 #
 ######################################################################
 
@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-04-29 15:00:05 JST
+	Version : 2019-04-30 15:46:07 JST
 	USAGE
   exit 1
 }
@@ -65,6 +65,14 @@ case "$# ${1:-}" in
   '1 -h'|'1 --help'|'1 --version') print_usage_and_exit;;
 esac
 
+# === Initialize parameters ==========================================
+date=''
+title=''
+category=''
+from=''
+ref=''
+target=''
+
 
 ######################################################################
 # Main Routine
@@ -72,7 +80,8 @@ esac
 
 # === 掲示板情報を取得 ===============================================
 # --- 0.パラメータおよびtmpディレクトリの設定 ------------------------
-readonly url='board.cs.tuat.ac.jp' # 掲示板のURL
+readonly url='https://board.cs.tuat.ac.jp' # 掲示板のURL
+chenc='Shift_JIS'                          # 文字コード
 trap 'exit_trap' EXIT HUP INT QUIT PIPE ALRM TERM
 Tmp=`mktemp -d -t "_${0##*/}.$$.XXXXXXXXXXX"` || error_exit 1 'Failed to mktemp'
 
@@ -82,62 +91,77 @@ board_path=$(if   [ -n "${CMD_WGET:-}" ]; then       #
                "$CMD_WGET" -q -O -                   \
                            --http-user="$CS_id"      \
                            --http-password="$CS_pw"  \
-                           "https://$url"            #
+                           "$url"                    #
             elif [ -n "${CMD_CURL:-}" ]; then        #
                "$CMD_CURL" -s                        \
                            -u "$CS_id:$CS_pw"        \
-                           "https://$url"            #
+                           "$url"                    #
             fi                                       |
             sed 's/\r//'                             |
             parsrx.sh                                |
             grep 'new\.html'                         |
             cut -d ' ' -f 2                          )
 [ -z "$board_path" ] && error_exit 1 '掲示一覧が見つかりません'
-# --- 2.掲示板の更新確認 ---------------------------------------------
-flg_changed=0
-if [ -e "$Dir_tmp/boardcs_Last-Modified" ]; then
-  # 前の変更日時と異なっていれば，更新扱い
-  if   [ -n "${CMD_WGET:-}" ]; then        #
-    "$CMD_WGET" -qS --spider -O -          \
-                --http-user="$CS_id"       \
-                --http-password="$CS_pw"   \
-                "https://$url$board_path"  \
-                2>&1                       #
-  elif [ -n "${CMD_CURL:-}" ]; then        #
-    "$CMD_CURL" -sI                        \
-                -u "$CS_id:$CS_pw"         \
-                "https://$url$board_path"  #
-  fi                                       |
-  sed 's/\r//'                             |
-  grep '^Last-Modified:'                   >$Tmp/boardcs_Last-Modified.current
-  [ ! -s $Tmp/boardcs_Last-Modified.current ] && error_exit 1 '掲示板の最終更新時刻が取得できません'
-  if ! diff "$Dir_tmp/boardcs_Last-Modified"   \
-            $Tmp/boardcs_Last-Modified.current >/dev/null; then
-    mv $Tmp/boardcs_Last-Modified.current "$Dir_tmp/boardcs_Last-Modified"
-    flg_changed=1
-  fi
-else
-  # 初めての取得であれば，更新扱い
-  if   [ -n "${CMD_WGET:-}" ]; then       #
-    "$CMD_WGET" -qS --spider -O -         \
-                --http-user="$CS_id"      \
-                --http-password="$CS_pw"  \
-                "https://$url$board_path" \
-                2>&1                      |
-    sed 's/^ *//'                         #
-  elif [ -n "${CMD_CURL:-}" ]; then       #
-    "$CMD_CURL" -sI                       \
-                -u "$CS_id:$CS_pw"        \
-                "https://$url$board_path" #
-  fi                                      |
-  sed 's/\r//'                            |
-  grep '^Last-Modified:'                  >"$Dir_tmp/boardcs_Last-Modified"
-  [ ! -s "$Dir_tmp/boardcs_Last-Modified" ] && error_exit 1 '掲示板の最終更新時刻が取得できません'
-  flg_changed=1
+# --- 掲示板の文字コード解析
+charset=$(curl -sI -u "$CS_id:$CS_pw" "$url/$board_path" |
+          sed 's/\r//'                                   |
+          grep '^Content-Type:'                          |
+          sed 's/[; ]\{1,\}/\n/g'                        |
+          grep '^charset'                                |
+          cut -d '=' -f 2                                |
+          awk '$0!="none"'                               )
+if [ -z "$charset" ]; then
+    charset=$(curl -s -u "$CS_id:$CS_pw" "$url/$board_path" |
+              sed 's/\r//'                                  |
+              grep 'charset'                                |
+              sed 's/[\";]/\n/g'                            |
+              grep charset                                  |
+              cut -d '=' -f 2                               )
+    [ -n "$charset" ] && chenc=$charset
 fi
+# --- 掲示板をjson形式で保存
+separator=''
+echo '[' >$Tmp/board.json
+curl -s -u "$CS_id:$CS_pw" "$url/$board_path"      |
+sed 's/\r//'                                       |
+iconv -f $chenc -t UTF-8                           |
+grep -iv '<meta'                                   |
+sed 's#<BR>#<BR/>#g'                               |
+sed 's#^\([^<]\{1,\}\)#<SPAN>\1</SPAN>#'           |
+parsrx.sh                                          |
+sed 's/\\n//g'                                     |
+while IFS= read -r line; do                        #
+  case "${line%% *}" in                            #
+    */BR)    echo "  $separator {"                 #
+             echo '    "date": "'$date'",'         #
+             echo '    "title": "'$title'",'       #
+             echo '    "category": "'$category'",' #
+             echo '    "from": "'$from'",'         #
+             echo '    "ref": "'$ref'"'            #
+             echo '  }'                            #
+             separator=','                         #
+             date=''                               #
+             from=''                               #
+             category=''                           #
+             ref=''                                #
+             title=''                              #
+             ;;                                    #
+    */SPAN)  date=$(echo ${line#* } |              #
+                    sed 's/\[.*$//' )              #
+             from=$(echo ${line#*[}      |         #
+                    sed 's/([^()]*)\]$//')         #
+             category=$(echo ${line##*(} |         #
+                        sed 's/)\]$//'   )         #
+             ;;                                    #
+    */@HREF) ref="${line#* }"                      #
+             ;;                                    #
+    */A)     title="${line#* }"                    #
+             ;;                                    #
+  esac                                             #
+done                                               >>$Tmp/board.json
+echo ']' >>$Tmp/board.json
 
-# === 更新情報を返す =================================================
-echo $flg_changed
+cat $Tmp/board.json
 
 
 ######################################################################
