@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-05-01 11:48:52 JST
+	Version : 2019-05-01 11:58:22 JST
 	USAGE
   exit 1
 }
@@ -79,14 +79,13 @@ target=''
 ######################################################################
 
 # === 掲示板情報を取得 ===============================================
-# --- 0.パラメータおよびtmpディレクトリの設定 ------------------------
+# --- 0.パラメータおよびtmpディレクトリの設定
 readonly url='https://board.cs.tuat.ac.jp' # 掲示板のURL
 chenc='Shift_JIS'                          # 文字コード
 trap 'exit_trap' EXIT HUP INT QUIT PIPE ALRM TERM
 Tmp=`mktemp -d -t "_${0##*/}.$$.XXXXXXXXXXX"` || error_exit 1 'Failed to mktemp'
-
-# --- 1.サイト情報の解析 ---------------------------------------------
-# --- 掲示板のパス
+# --- 1.サイト情報の解析
+# 掲示板のパス
 board_path=$(if   [ -n "${CMD_WGET:-}" ]; then       #
                "$CMD_WGET" -q -O -                   \
                            --http-user="$CS_id"      \
@@ -102,7 +101,7 @@ board_path=$(if   [ -n "${CMD_WGET:-}" ]; then       #
             grep 'new\.html'                         |
             cut -d ' ' -f 2                          )
 [ -z "$board_path" ] && error_exit 1 '掲示一覧が見つかりません'
-# --- 掲示板の文字コード解析
+# 掲示板の文字コード解析
 charset=$(curl -sI -u "$CS_id:$CS_pw" "$url/$board_path" |
           sed 's/\r//'                                   |
           grep '^Content-Type:'                          |
@@ -119,8 +118,7 @@ if [ -z "$charset" ]; then
               cut -d '=' -f 2                               )
     [ -n "$charset" ] && chenc=$charset
 fi
-
-# --- 2.掲示板をフィールド形式で保存 ---------------------------------
+# --- 2.掲示板をフィールド形式で保存
 # 1:path 2:key 3:value
 separator=''
 curl -s -u "$CS_id:$CS_pw" "$url/$board_path" |
@@ -159,7 +157,7 @@ while IFS= read -r line; do                   #
 done                                          >$Tmp/board
 
 # === 更新されたの投稿のみ抽出 =======================================
-# --- 更新部分の保存 -------------------------------------------------
+# --- 1.更新部分の保存
 if [ -e "$Dir_tmp/boardcs_latest" ]; then
   cat $Tmp/board                             |
   nl -nrz                                    |
@@ -170,7 +168,7 @@ if [ -e "$Dir_tmp/boardcs_latest" ]; then
 else
   cp $Tmp/board $Tmp/news
 fi
-# --- 最新の投稿一覧を保存 -------------------------------------------
+# --- 2.最新の投稿一覧を保存
 if [ -s $Tmp/news ]; then
   cat $Tmp/board  |
   cut -d ' ' -f 1 |
