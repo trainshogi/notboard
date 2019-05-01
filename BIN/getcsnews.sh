@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-05-01 11:58:22 JST
+	Version : 2019-05-01 12:00:10 JST
 	USAGE
   exit 1
 }
@@ -71,7 +71,6 @@ title=''
 category=''
 from=''
 ref=''
-target=''
 
 
 ######################################################################
@@ -120,7 +119,6 @@ if [ -z "$charset" ]; then
 fi
 # --- 2.掲示板をフィールド形式で保存
 # 1:path 2:key 3:value
-separator=''
 curl -s -u "$CS_id:$CS_pw" "$url/$board_path" |
 sed 's/\r//'                                  |
 iconv -f $chenc -t UTF-8                      |
@@ -135,7 +133,6 @@ while IFS= read -r line; do                   #
              echo "$ref title    $title"      #
              echo "$ref category $category"   #
              echo "$ref from     $from"       #
-             separator=','                    #
              date=''                          #
              from=''                          #
              category=''                      #
