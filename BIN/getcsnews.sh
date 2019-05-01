@@ -2,9 +2,9 @@
 
 ######################################################################
 #
-# GETCSNEWS.SH : 情報科掲示板に新着があるか確認する
+# GETCSNEWS.SH : 情報科掲示板の新着を出力
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-04-30
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-01
 #
 ######################################################################
 
@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-04-30 15:46:07 JST
+	Version : 2019-05-01 11:48:52 JST
 	USAGE
   exit 1
 }
@@ -119,49 +119,67 @@ if [ -z "$charset" ]; then
               cut -d '=' -f 2                               )
     [ -n "$charset" ] && chenc=$charset
 fi
-# --- 掲示板をjson形式で保存
-separator=''
-echo '[' >$Tmp/board.json
-curl -s -u "$CS_id:$CS_pw" "$url/$board_path"      |
-sed 's/\r//'                                       |
-iconv -f $chenc -t UTF-8                           |
-grep -iv '<meta'                                   |
-sed 's#<BR>#<BR/>#g'                               |
-sed 's#^\([^<]\{1,\}\)#<SPAN>\1</SPAN>#'           |
-parsrx.sh                                          |
-sed 's/\\n//g'                                     |
-while IFS= read -r line; do                        #
-  case "${line%% *}" in                            #
-    */BR)    echo "  $separator {"                 #
-             echo '    "date": "'$date'",'         #
-             echo '    "title": "'$title'",'       #
-             echo '    "category": "'$category'",' #
-             echo '    "from": "'$from'",'         #
-             echo '    "ref": "'$ref'"'            #
-             echo '  }'                            #
-             separator=','                         #
-             date=''                               #
-             from=''                               #
-             category=''                           #
-             ref=''                                #
-             title=''                              #
-             ;;                                    #
-    */SPAN)  date=$(echo ${line#* } |              #
-                    sed 's/\[.*$//' )              #
-             from=$(echo ${line#*[}      |         #
-                    sed 's/([^()]*)\]$//')         #
-             category=$(echo ${line##*(} |         #
-                        sed 's/)\]$//'   )         #
-             ;;                                    #
-    */@HREF) ref="${line#* }"                      #
-             ;;                                    #
-    */A)     title="${line#* }"                    #
-             ;;                                    #
-  esac                                             #
-done                                               >>$Tmp/board.json
-echo ']' >>$Tmp/board.json
 
-cat $Tmp/board.json
+# --- 2.掲示板をフィールド形式で保存 ---------------------------------
+# 1:path 2:key 3:value
+separator=''
+curl -s -u "$CS_id:$CS_pw" "$url/$board_path" |
+sed 's/\r//'                                  |
+iconv -f $chenc -t UTF-8                      |
+grep -iv '<meta'                              |
+sed 's#<BR>#<BR/>#g'                          |
+sed 's#^\([^<]\{1,\}\)#<SPAN>\1</SPAN>#'      |
+parsrx.sh                                     |
+sed 's/\\n//g'                                |
+while IFS= read -r line; do                   #
+  case "${line%% *}" in                       #
+    */BR)    echo "$ref date     $date"       #
+             echo "$ref title    $title"      #
+             echo "$ref category $category"   #
+             echo "$ref from     $from"       #
+             separator=','                    #
+             date=''                          #
+             from=''                          #
+             category=''                      #
+             ref=''                           #
+             title=''                         #
+             ;;                               #
+    */SPAN)  date=$(echo ${line#* } |         #
+                    sed 's/\[.*$//' )         #
+             from=$(echo ${line#*[}      |    #
+                    sed 's/([^()]*)\]$//')    #
+             category=$(echo ${line##*(} |    #
+                        sed 's/)\]$//'   )    #
+             ;;                               #
+    */@HREF) ref="${line#* }"                 #
+             ;;                               #
+    */A)     title="${line#* }"               #
+             ;;                               #
+  esac                                        #
+done                                          >$Tmp/board
+
+# === 更新されたの投稿のみ抽出 =======================================
+# --- 更新部分の保存 -------------------------------------------------
+if [ -e "$Dir_tmp/boardcs_latest" ]; then
+  cat $Tmp/board                             |
+  nl -nrz                                    |
+  sort -k 2,2 -k 1,1                         |
+  join -v 2 -2 2 "$Dir_tmp/boardcs_latest" - |
+  sort -k 2,2                                |
+  awk '{print $1, $3, $4}'                   >$Tmp/news
+else
+  cp $Tmp/board $Tmp/news
+fi
+# --- 最新の投稿一覧を保存 -------------------------------------------
+if [ -s $Tmp/news ]; then
+  cat $Tmp/board  |
+  cut -d ' ' -f 1 |
+  uniq            |
+  sort            >"$Dir_tmp/boardcs_latest"
+fi
+
+# === 更新情報を出力 =================================================
+cat $Tmp/news
 
 
 ######################################################################
