@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-05-02 10:55:20 JST
+	Version : 2019-05-02 20:18:29 JST
 	USAGE
   exit 1
 }
@@ -91,39 +91,43 @@ fi
 # === 新着情報を取得して配信 =========================================
 # --- a.学科掲示板からの取得，配信
 key=''
-: | >$Tmp/message
-getcsnews.sh                           |
-# 1:group 2:key 3:value                #
-while IFS= read -r line; do            #
-  if [ "$key" != "${line%% *}" ]; then
-    key="${line%% *}"
-    date=''
-    title=''
-    category=''
-    from=''
-    ref=''
-    if [ -s $Tmp/message ]; then
-      cat "$Dir_tmp/subscriber"                                 |
-      cut -d ' ' -f 1                                           |
-      xargs -I @ sh -c 'cat '"$Tmp"'/message | dmtweet.sh -t @'
-      : | >$Tmp/message
-    fi
-  fi
-  case "${line#* }" in
-    date*)     echo '【日付】'$(    echo $line | cut -d ' ' -f 3-) >>$Tmp/message ;;
-    title*)    echo '【タイトル】'$(echo $line | cut -d ' ' -f 3-) >>$Tmp/message ;;
-    category*) echo '【カテゴリ】'$(echo $line | cut -d ' ' -f 3-) >>$Tmp/message ;;
-    from*)     echo '【担当者】'$(  echo $line | cut -d ' ' -f 3-) >>$Tmp/message ;;
-    ref*)      echo '【詳細】'$(    echo $line | cut -d ' ' -f 3-) >>$Tmp/message ;;
-    *)         echo "【$(echo $line | cut -d ' ' -f 2)】"$(echo $line | cut -d ' ' -f 3-) \
-                    >>$Tmp/message ;;
-  esac
-done
-if [ -s $Tmp/message ]; then
-  cat "$Dir_tmp/subscriber"                                 |
-  cut -d ' ' -f 1                                           |
-  xargs -I @ sh -c 'cat '"$Tmp"'/message | dmtweet.sh -t @'
-fi
+delimiter=''
+getcsnews.sh                                              |
+# 1:group 2:key 3:value                                   #
+while IFS= read -r line; do                               #
+  if [ "$key" != "${line%% *}" ]; then                    #
+    key="${line%% *}"                                     #
+    date=''                                               #
+    title=''                                              #
+    category=''                                           #
+    from=''                                               #
+    ref=''                                                #
+    printf "$delimiter"                                   #
+    delimiter='\0'                                        #
+  fi                                                      #
+  case "${line#* }" in                                    #
+    date*)     echo '【日付】'                            #
+               echo $line | cut -d ' ' -f 3-              #
+               ;;                                         #
+    title*)    echo '【タイトル】'                        #
+               echo $line | cut -d ' ' -f 3-              #
+               ;;                                         #
+    category*) echo '【カテゴリ】'                        #
+               echo $line | cut -d ' ' -f 3-              #
+               ;;                                         #
+    from*)     echo '【担当者】'                          #
+               echo $line | cut -d ' ' -f 3-              #
+               ;;                                         #
+    ref*)      echo '【詳細】'                            #
+               echo $line | cut -d ' ' -f 3-              #
+               ;;                                         #
+    *)         echo "【$(echo $line | cut -d ' ' -f 2)】" #
+               echo $line | cut -d ' ' -f 3-              #
+  esac                                                    #
+done                                                      |
+xargs -0 -I @ sh -c 'cat "'"$Dir_tmp"'/subscriber"  |     #
+                     cut -d " " -f 1                |     #
+                     xargs -I % dmtweet.sh -t % "@"'
 # --- b.学校掲示板からの取得，配信
 message=$(echo "$CAMPUS"           |
           join "$Dir_dat/campus" - |
