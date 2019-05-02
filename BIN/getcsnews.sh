@@ -4,7 +4,7 @@
 #
 # GETCSNEWS.SH : 情報科掲示板の新着を出力
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-01
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-02
 #
 ######################################################################
 
@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-05-01 12:00:10 JST
+	Version : 2019-05-02 10:56:47 JST
 	USAGE
   exit 1
 }
@@ -130,9 +130,10 @@ sed 's/\\n//g'                                |
 while IFS= read -r line; do                   #
   case "${line%% *}" in                       #
     */BR)    echo "$ref date     $date"       #
-             echo "$ref title    $title"      #
              echo "$ref category $category"   #
+             echo "$ref title    $title"      #
              echo "$ref from     $from"       #
+             echo "$ref ref      $url$ref"    #
              date=''                          #
              from=''                          #
              category=''                      #

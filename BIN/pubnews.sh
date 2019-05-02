@@ -4,7 +4,7 @@
 #
 # PUBNEWS.SH : 新着情報の連絡
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-04-29
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-02
 #
 ######################################################################
 
@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-04-29 16:14:00 JST
+	Version : 2019-05-02 10:55:20 JST
 	USAGE
   exit 1
 }
@@ -55,6 +55,13 @@ case "$# ${1:-}" in
   '1 -h'|'1 --help'|'1 --version') print_usage_and_exit;;
 esac
 
+# === Initialize parameters ==========================================
+date=''
+title=''
+category=''
+from=''
+ref=''
+
 
 ######################################################################
 # Main Routine
@@ -65,13 +72,13 @@ trap 'exit_trap' EXIT HUP INT QUIT PIPE ALRM TERM
 Tmp=`mktemp -d -t "_${0##*/}.$$.XXXXXXXXXXX"` || error_exit 1 'Failed to mktemp'
 
 # === 配信対象の特定 =================================================
-# --- 0.アカウントの正当性確認 ---------------------------------------
+# --- 0.アカウントの正当性確認
 used_twitter_id=$(grep MY_scname                                       \
                        "$Homedir/TOOL/kotoriotoko/CONFIG/COMMON.SHLIB" |
                   cut -d '=' -f 2                                      |
                   sed "s/'//g"                                         )
 [ "$used_twitter_id" != "$twitter_id" ] && error_exit 1 '配信元情報の整合性がありません'
-# --- 1.フォロワの取得 -----------------------------------------------
+# --- 1.フォロワの取得
 twfer.sh | sed 's/^.*(@\(.*\))$/\1/' | sort >$Tmp/follower
 if [ -r "$Dir_tmp/subscriber" ]; then
   join -a 2 "$Dir_tmp/subscriber" $Tmp/follower >$Tmp/subscriber
@@ -82,15 +89,42 @@ fi
 [ ! -s "$Dir_tmp/subscriber" ] && error_exit 1 'No subscriber found'
 
 # === 新着情報を取得して配信 =========================================
-# --- 学科掲示板からの取得，配信 -------------------------------------
-message='学科の掲示板が更新されました'
-if [ "$(getcsnews.sh)" -eq 1 ]; then
-  cat "$Dir_tmp/subscriber"             |
-  cut -d ' ' -f 1                       |
-  xargs -I @ dmtweet.sh -t @ "$message"
+# --- a.学科掲示板からの取得，配信
+key=''
+: | >$Tmp/message
+getcsnews.sh                           |
+# 1:group 2:key 3:value                #
+while IFS= read -r line; do            #
+  if [ "$key" != "${line%% *}" ]; then
+    key="${line%% *}"
+    date=''
+    title=''
+    category=''
+    from=''
+    ref=''
+    if [ -s $Tmp/message ]; then
+      cat "$Dir_tmp/subscriber"                                 |
+      cut -d ' ' -f 1                                           |
+      xargs -I @ sh -c 'cat '"$Tmp"'/message | dmtweet.sh -t @'
+      : | >$Tmp/message
+    fi
+  fi
+  case "${line#* }" in
+    date*)     echo '【日付】'$(    echo $line | cut -d ' ' -f 3-) >>$Tmp/message ;;
+    title*)    echo '【タイトル】'$(echo $line | cut -d ' ' -f 3-) >>$Tmp/message ;;
+    category*) echo '【カテゴリ】'$(echo $line | cut -d ' ' -f 3-) >>$Tmp/message ;;
+    from*)     echo '【担当者】'$(  echo $line | cut -d ' ' -f 3-) >>$Tmp/message ;;
+    ref*)      echo '【詳細】'$(    echo $line | cut -d ' ' -f 3-) >>$Tmp/message ;;
+    *)         echo "【$(echo $line | cut -d ' ' -f 2)】"$(echo $line | cut -d ' ' -f 3-) \
+                    >>$Tmp/message ;;
+  esac
+done
+if [ -s $Tmp/message ]; then
+  cat "$Dir_tmp/subscriber"                                 |
+  cut -d ' ' -f 1                                           |
+  xargs -I @ sh -c 'cat '"$Tmp"'/message | dmtweet.sh -t @'
 fi
-
-# --- 学校掲示板からの取得，配信 -------------------------------------
+# --- b.学校掲示板からの取得，配信
 message=$(echo "$CAMPUS"           |
           join "$Dir_dat/campus" - |
           cut -d ' ' -f 2-         )の掲示板が更新されました
