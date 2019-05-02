@@ -24,8 +24,9 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 # === Define the functions for printing usage and exiting ============
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
-	Usage   : ${0##*/}
-	Version : 2019-05-02 10:56:47 JST
+	Usage   : ${0##*/} [options]
+	Options : -n|--dry-run
+	Version : 2019-05-02 21:13:32 JST
 	USAGE
   exit 1
 }
@@ -66,11 +67,27 @@ case "$# ${1:-}" in
 esac
 
 # === Initialize parameters ==========================================
+dryrun=0
 date=''
 title=''
 category=''
 from=''
 ref=''
+
+# === Read options ===================================================
+while :; do
+  case "${1:-}" in
+    --dry-run|-n) dryrun=1
+                  shift
+                  ;;
+    --|-)         break
+                  ;;
+    --*|-*)       error_exit 1 'Invalid option'
+                  ;;
+    *)            break
+                  ;;
+  esac
+done
 
 
 ######################################################################
@@ -167,7 +184,7 @@ else
   cp $Tmp/board $Tmp/news
 fi
 # --- 2.最新の投稿一覧を保存
-if [ -s $Tmp/news ]; then
+if [ $dryrun -eq 0 -a -s $Tmp/news ]; then
   cat $Tmp/board  |
   cut -d ' ' -f 1 |
   uniq            |
