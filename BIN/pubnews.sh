@@ -4,7 +4,7 @@
 #
 # PUBNEWS.SH : 新着情報の連絡
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-02
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-03
 #
 ######################################################################
 
@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-05-02 20:18:29 JST
+	Version : 2019-05-03 09:39:43 JST
 	USAGE
   exit 1
 }
@@ -92,7 +92,7 @@ fi
 # --- a.学科掲示板からの取得，配信
 key=''
 delimiter=''
-getcsnews.sh                                              |
+getcsnews.sh -f "$Homedir/TMP/boardcs_latest"             |
 # 1:group 2:key 3:value                                   #
 while IFS= read -r line; do                               #
   if [ "$key" != "${line%% *}" ]; then                    #

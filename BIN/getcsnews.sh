@@ -4,7 +4,7 @@
 #
 # GETCSNEWS.SH : 情報科掲示板の新着を出力
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-02
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-03
 #
 ######################################################################
 
@@ -25,8 +25,9 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/} [options]
-	Options : -n|--dry-run
-	Version : 2019-05-02 21:13:32 JST
+	Options : -n       |--dry-run
+	          -f <file>|--diff-file=<file>
+	Version : 2019-05-03 09:39:43 JST
 	USAGE
   exit 1
 }
@@ -77,15 +78,27 @@ ref=''
 # === Read options ===================================================
 while :; do
   case "${1:-}" in
-    --dry-run|-n) dryrun=1
-                  shift
-                  ;;
-    --|-)         break
-                  ;;
-    --*|-*)       error_exit 1 'Invalid option'
-                  ;;
-    *)            break
-                  ;;
+    --dry-run|-n)  dryrun=1
+                   shift
+                   ;;
+    --diff-file=*) file=$(printf '%s' "${1#--diff-file=}")
+                   [ -n "${file##*/}" ] || error_exit 1 'Invalid --diff-file option'
+                   dir=$(printf '%s' "${file##*/}")
+                   [ -n "$dir" -a -d "$dir" ] || error_exit 1 "cannot make $file: No such file or directory"
+                   shift 1
+                   ;;
+    -f)            file="${2:-}"
+                   [ -n "${file##*/}" ] || error_exit 1 'Invalid -f option'
+                   dir=$(printf '%s' "${file%/*}")
+                   [ -n "$dir" -a -d "$dir" ] || error_exit 1 "cannot make $file: No such file or directory"
+                   shift 2
+                   ;;
+    --|-)          break
+                   ;;
+    --*|-*)        error_exit 1 'Invalid option'
+                   ;;
+    *)             break
+                   ;;
   esac
 done
 
@@ -173,22 +186,22 @@ done                                          >$Tmp/board
 
 # === 更新されたの投稿のみ抽出 =======================================
 # --- 1.更新部分の保存
-if [ -e "$Dir_tmp/boardcs_latest" ]; then
-  cat $Tmp/board                             |
-  nl -nrz                                    |
-  sort -k 2,2 -k 1,1                         |
-  join -v 2 -2 2 "$Dir_tmp/boardcs_latest" - |
-  sort -k 2,2                                |
-  awk '{print $1, $3, $4}'                   >$Tmp/news
+if [ -e "${file:-}" ]; then
+  cat $Tmp/board           |
+  nl -nrz                  |
+  sort -k 2,2 -k 1,1       |
+  join -v 2 -2 2 "$file" - |
+  sort -k 2,2              |
+  awk '{print $1, $3, $4}' >$Tmp/news
 else
   cp $Tmp/board $Tmp/news
 fi
 # --- 2.最新の投稿一覧を保存
-if [ $dryrun -eq 0 -a -s $Tmp/news ]; then
+if [ $dryrun -eq 0 -a -n "${file:-}" -a -s $Tmp/news ]; then
   cat $Tmp/board  |
   cut -d ' ' -f 1 |
   uniq            |
-  sort            >"$Dir_tmp/boardcs_latest"
+  sort            >"$file"
 fi
 
 # === 更新情報を出力 =================================================
