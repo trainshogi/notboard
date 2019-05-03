@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-05-03 09:39:43 JST
+	Version : 2019-05-03 23:29:35 JST
 	USAGE
   exit 1
 }
@@ -78,21 +78,14 @@ used_twitter_id=$(grep MY_scname                                       \
                   cut -d '=' -f 2                                      |
                   sed "s/'//g"                                         )
 [ "$used_twitter_id" != "$twitter_id" ] && error_exit 1 '配信元情報の整合性がありません'
-# --- 1.フォロワの取得
-twfer.sh | sed 's/^.*(@\(.*\))$/\1/' | sort >$Tmp/follower
-if [ -r "$Dir_tmp/subscriber" ]; then
-  join -a 2 "$Dir_tmp/subscriber" $Tmp/follower >$Tmp/subscriber
-  mv $Tmp/subscriber "$Dir_tmp/subscriber"
-else
-  mv $Tmp/follower "$Dir_tmp/subscriber"
-fi
-[ ! -s "$Dir_tmp/subscriber" ] && error_exit 1 'No subscriber found'
+# --- 1.フォロワの取得および更新
+update-subscriber.sh -f "$Dir_tmp/subscriber"
 
 # === 新着情報を取得して配信 =========================================
 # --- a.学科掲示板からの取得，配信
 key=''
 delimiter=''
-getcsnews.sh -f "$Homedir/TMP/boardcs_latest"             |
+getcsnews.sh -f "$Dir_tmp/boardcs_latest"                 |
 # 1:group 2:key 3:value                                   #
 while IFS= read -r line; do                               #
   if [ "$key" != "${line%% *}" ]; then                    #
