@@ -161,23 +161,23 @@ charset=$(if   [ -n "${CMD_WGET:-}" ]; then           #
           cut -d '=' -f 2                             |
           awk '$0!="none"'                            )
 if [ -z "$charset" ]; then
-    charset=$(if   [ -n "${CMD_WGET:-}" ]; then      #
-                "$CMD_WGET" -q -O -                  \
-                            --http-user="$CS_id"     \
-                            --http-password="$CS_pw" \
-                            "$url$board_path"        #
-              elif [ -n "${CMD_CURL:-}" ]; then      #
-                "$CMD_CURL" -s                       \
-                            -u "$CS_id:$CS_pw"       \
-                            "$url$board_path"        #
-              fi                                     |
-              sed 's/\r//'                           |
-              grep 'charset'                         |
-              sed 's/[\";]/\n/g'                     |
-              grep charset                           |
-              cut -d '=' -f 2                        )
-    [ -n "$charset" ] && chenc=$charset
+  charset=$(if   [ -n "${CMD_WGET:-}" ]; then      #
+              "$CMD_WGET" -q -O -                  \
+                          --http-user="$CS_id"     \
+                          --http-password="$CS_pw" \
+                          "$url$board_path"        #
+            elif [ -n "${CMD_CURL:-}" ]; then      #
+              "$CMD_CURL" -s                       \
+                          -u "$CS_id:$CS_pw"       \
+                          "$url$board_path"        #
+            fi                                     |
+            sed 's/\r//'                           |
+            grep 'charset'                         |
+            sed 's/[\";]/\n/g'                     |
+            grep charset                           |
+            cut -d '=' -f 2                        )
 fi
+[ -n "$charset" ] && chenc=$charset
 # --- 2.掲示板をフィールド形式で保存
 # 1:path 2:key 3:value
 if   [ -n "${CMD_WGET:-}" ]; then           #
