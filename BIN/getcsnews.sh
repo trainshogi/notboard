@@ -27,7 +27,7 @@ print_usage_and_exit () {
 	Usage   : ${0##*/} [options]
 	Options : -n       |--dry-run
 	          -f <file>|--diff-file=<file>
-	Version : 2019-05-04 09:13:52 JST
+	Version : 2019-05-04 10:37:21 JST
 	USAGE
   exit 1
 }
@@ -123,91 +123,121 @@ trap 'exit_trap' EXIT HUP INT QUIT PIPE ALRM TERM
 Tmp=`mktemp -d -t "_${0##*/}.$$.XXXXXXXXXXX"` || error_exit 1 'Failed to mktemp'
 # --- 1.サイト情報の解析
 # 掲示板のパス
-board_path=$(if   [ -n "${CMD_WGET:-}" ]; then       #
-               "$CMD_WGET" -q -O -                   \
-                           --http-user="$CS_id"      \
-                           --http-password="$CS_pw"  \
-                           "$url"                    #
-            elif [ -n "${CMD_CURL:-}" ]; then        #
-               "$CMD_CURL" -s                        \
-                           -u "$CS_id:$CS_pw"        \
-                           "$url"                    #
-            fi                                       |
-            sed 's/\r//'                             |
-            parsrx.sh                                |
-            grep 'new\.html'                         |
-            cut -d ' ' -f 2                          )
+board_path=$(if   [ -n "${CMD_WGET:-}" ]; then      #
+               "$CMD_WGET" -q -O -                  \
+                           --http-user="$CS_id"     \
+                           --http-password="$CS_pw" \
+                           "$url"                   #
+             elif [ -n "${CMD_CURL:-}" ]; then      #
+               "$CMD_CURL" -s                       \
+                           -u "$CS_id:$CS_pw"       \
+                           "$url"                   #
+             fi                                     |
+             sed 's/\r//'                           |
+             parsrx.sh                              |
+             grep 'new\.html'                       |
+             cut -d ' ' -f 2                        )
 [ -z "$board_path" ] && error_exit 1 '掲示一覧が見つかりません'
 # 掲示板の文字コード解析
-charset=$(curl -sI -u "$CS_id:$CS_pw" "$url/$board_path" |
-          sed 's/\r//'                                   |
-          grep '^Content-Type:'                          |
-          sed 's/[; ]\{1,\}/\n/g'                        |
-          grep '^charset'                                |
-          cut -d '=' -f 2                                |
-          awk '$0!="none"'                               )
+charset=$(if   [ -n "${CMD_WGET:-}" ]; then           #
+            "$CMD_WGET" -q -O -                       \
+                        --http-user="$CS_id"          \
+                        --http-password="$CS_pw"      \
+                        "$url$board_path"             \
+                        2>&1                          |
+            sed 's/\r//'                              |
+            cut -b 3-                                 |
+            awk '$0=="HTTP/1.1 200 OK"{flg=1} flg==1' |
+            grep '^Content-Type:'                     #
+          elif [ -n "${CMD_CURL:-}" ]; then           #
+            "$CMD_CURL" -sI                           \
+                        -u "$CS_id:$CS_pw"            \
+                        "$url$board_path"             |
+            sed 's/\r//'                              |
+            grep '^Content-Type:'                     #
+          fi                                          |
+          sed 's/[; ]\{1,\}/\n/g'                     |
+          grep '^charset'                             |
+          cut -d '=' -f 2                             |
+          awk '$0!="none"'                            )
 if [ -z "$charset" ]; then
-    charset=$(curl -s -u "$CS_id:$CS_pw" "$url/$board_path" |
-              sed 's/\r//'                                  |
-              grep 'charset'                                |
-              sed 's/[\";]/\n/g'                            |
-              grep charset                                  |
-              cut -d '=' -f 2                               )
+    charset=$(if   [ -n "${CMD_WGET:-}" ]; then      #
+                "$CMD_WGET" -q -O -                  \
+                            --http-user="$CS_id"     \
+                            --http-password="$CS_pw" \
+                            "$url$board_path"        #
+              elif [ -n "${CMD_CURL:-}" ]; then      #
+                "$CMD_CURL" -s                       \
+                            -u "$CS_id:$CS_pw"       \
+                            "$url$board_path"        #
+              fi                                     |
+              sed 's/\r//'                           |
+              grep 'charset'                         |
+              sed 's/[\";]/\n/g'                     |
+              grep charset                           |
+              cut -d '=' -f 2                        )
     [ -n "$charset" ] && chenc=$charset
 fi
 # --- 2.掲示板をフィールド形式で保存
 # 1:path 2:key 3:value
-curl -s -u "$CS_id:$CS_pw" "$url/$board_path" |
-sed 's/\r//'                                  |
-if   [ -n "${CMD_ICONV:-}" ]; then            #
-  "$CMD_ICONV" -f $chenc -t UTF-8             #
-elif [ -n "${CMD_NKF:-}" ]; then              #
-  case "$chenc" in                            #
-    Shift_JIS) "$CMD_NKF" -Sw80 ;;            #
-    UTF-8)     cat              ;;            #
-  esac                                        #
-fi                                            |
-grep -iv '<meta'                              |
-sed 's#<BR>#<BR/>#g'                          |
-sed 's#^\([^<]\{1,\}\)#<SPAN>\1</SPAN>#'      |
-parsrx.sh                                     |
-sed 's/\\n//g'                                |
-while IFS= read -r line; do                   #
-  case "${line%% *}" in                       #
-    */BR)    echo "$ref date     $date"       #
-             echo "$ref category $category"   #
-             echo "$ref title    $title"      #
-             echo "$ref from     $from"       #
-             echo "$ref ref      $url$ref"    #
-             date=''                          #
-             from=''                          #
-             category=''                      #
-             ref=''                           #
-             title=''                         #
-             ;;                               #
-    */SPAN)  date=$(echo ${line#* } |         #
-                    sed 's/\[.*$//' )         #
-             from=$(echo ${line#*[}      |    #
-                    sed 's/([^()]*)\]$//')    #
-             category=$(echo ${line##*(} |    #
-                        sed 's/)\]$//'   )    #
-             ;;                               #
-    */@HREF) ref="${line#* }"                 #
-             ;;                               #
-    */A)     title="${line#* }"               #
-             ;;                               #
-  esac                                        #
-done                                          >$Tmp/board
+if   [ -n "${CMD_WGET:-}" ]; then           #
+  "$CMD_WGET" -q -O -                       \
+              --http-user="$CS_id"          \
+              --http-password="$CS_pw"      \
+              "$url$board_path"             #
+elif [ -n "${CMD_CURL:-}" ]; then           #
+  "$CMD_CURL" -s                            \
+              -u "$CS_id:$CS_pw"            \
+              "$url$board_path"             #
+fi                                          |
+sed 's/\r//'                                |
+if   [ -n "${CMD_ICONV:-}" ]; then          #
+  "$CMD_ICONV" -f $chenc -t UTF-8           #
+elif [ -n "${CMD_NKF:-}" ]; then            #
+  case "$chenc" in                          #
+    Shift_JIS) "$CMD_NKF" -Sw80 ;;          #
+    UTF-8)     cat              ;;          #
+  esac                                      #
+fi                                          |
+grep -iv '<meta'                            |
+sed 's#<BR>#<BR/>#g'                        |
+sed 's#^\([^<]\{1,\}\)#<SPAN>\1</SPAN>#'    |
+parsrx.sh                                   |
+sed 's/\\n//g'                              |
+while IFS= read -r line; do                 #
+  case "${line%% *}" in                     #
+    */BR)    echo "$ref date     $date"     #
+             echo "$ref category $category" #
+             echo "$ref title    $title"    #
+             echo "$ref from     $from"     #
+             echo "$ref ref      $url$ref"  #
+             date=''                        #
+             from=''                        #
+             category=''                    #
+             ref=''                         #
+             title=''                       #
+             ;;                             #
+    */SPAN)  date=$(echo ${line#* } |       #
+                    sed 's/\[.*$//' )       #
+             from=$(echo ${line#*[}      |  #
+                    sed 's/([^()]*)\]$//')  #
+             category=$(echo ${line##*(} |  #
+                        sed 's/)\]$//'   )  #
+             ;;                             #
+    */@HREF) ref="${line#* }"               #
+             ;;                             #
+    */A)     title="${line#* }"             #
+             ;;                             #
+  esac                                      #
+done                                        >$Tmp/board
 
 # === 更新されたの投稿のみ抽出 =======================================
 # --- 1.更新部分の保存
 if [ -e "${file:-}" ]; then
-  cat $Tmp/board           |
-  nl -nrz                  |
-  sort -k 2,2 -k 1,1       |
-  join -v 2 -2 2 "$file" - |
-  sort -k 2,2              |
-  awk '{print $1, $3, $4}' >$Tmp/news
+  cat $Tmp/board                          |
+  nl -nrz                                 |
+  sort -k 2,2 -k 1,1                      |
+  join -v 2 -2 2 -o 2.2 2.3 2.4 "$file" - >$Tmp/news
 else
   cp $Tmp/board $Tmp/news
 fi
@@ -215,8 +245,8 @@ fi
 if [ $dryrun -eq 0 -a -n "${file:-}" -a -s $Tmp/news ]; then
   cat $Tmp/board  |
   cut -d ' ' -f 1 |
-  uniq            |
-  sort            >"$file"
+  sort            |
+  uniq            >"$file"
 fi
 
 # === 更新情報を出力 =================================================
