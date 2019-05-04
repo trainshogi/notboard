@@ -4,7 +4,7 @@
 #
 # GETCSNEWS.SH : 情報科掲示板の新着を出力
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-03
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-04
 #
 ######################################################################
 
@@ -27,7 +27,7 @@ print_usage_and_exit () {
 	Usage   : ${0##*/} [options]
 	Options : -n       |--dry-run
 	          -f <file>|--diff-file=<file>
-	Version : 2019-05-03 09:39:43 JST
+	Version : 2019-05-04 09:13:52 JST
 	USAGE
   exit 1
 }
@@ -49,12 +49,20 @@ PATH="$Homedir/TOOL:$PATH"       # for additional command
 
 # === Confirm that the required commands exist =======================
 # --- 1.cURL or Wget
-if   type curl    >/dev/null 2>&1; then
+if   type curl  >/dev/null 2>&1; then
   CMD_CURL='curl'
-elif type wget    >/dev/null 2>&1; then
+elif type wget  >/dev/null 2>&1; then
   CMD_WGET='wget'
 else
   error_exit 1 'No HTTP-GET/POST command found.'
+fi
+# --- 2.iconv or nkf
+if   type iconv >/dev/null 2>&1; then
+  CMD_ICONV='iconv'
+elif type nkf   >/dev/null 2>&1; then
+  CMD_NKF='nkf'
+else
+  error_exit 1 'No convert-encoding command found.'
 fi
 
 
@@ -151,7 +159,14 @@ fi
 # 1:path 2:key 3:value
 curl -s -u "$CS_id:$CS_pw" "$url/$board_path" |
 sed 's/\r//'                                  |
-iconv -f $chenc -t UTF-8                      |
+if   [ -n "${CMD_ICONV:-}" ]; then            #
+  "$CMD_ICONV" -f $chenc -t UTF-8             #
+elif [ -n "${CMD_NKF:-}" ]; then              #
+  case "$chenc" in                            #
+    Shift_JIS) "$CMD_NKF" -Sw80 ;;            #
+    UTF-8)     cat              ;;            #
+  esac                                        #
+fi                                            |
 grep -iv '<meta'                              |
 sed 's#<BR>#<BR/>#g'                          |
 sed 's#^\([^<]\{1,\}\)#<SPAN>\1</SPAN>#'      |
