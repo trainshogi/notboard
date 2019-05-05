@@ -4,7 +4,7 @@
 #
 # PUBNEWS.SH : 新着情報の連絡
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-03
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-05
 #
 ######################################################################
 
@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-05-03 23:29:35 JST
+	Version : 2019-05-05 20:51:57 JST
 	USAGE
   exit 1
 }
@@ -122,14 +122,44 @@ xargs -0 -I @ sh -c 'cat "'"$Dir_tmp"'/subscriber"  |     #
                      cut -d " " -f 1                |     #
                      xargs -I % dmtweet.sh -t % "@"'
 # --- b.学校掲示板からの取得，配信
-message=$(echo "$CAMPUS"           |
-          join "$Dir_dat/campus" - |
-          cut -d ' ' -f 2-         )の掲示板が更新されました
-if [ "$(gettuatnews.sh)" -eq 1 ]; then
-  cat "$Dir_tmp/subscriber"             |
-  cut -d ' ' -f 1                       |
-  xargs -I @ dmtweet.sh -t @ "$message"
-fi
+key=''
+delimiter=''
+gettuatnews.sh -f "$Dir_tmp/boardtuat_latest"             |
+# 1:group 2:key 3:value                                   #
+while IFS= read -r line; do                               #
+  if [ "$key" != "${line%% *}" ]; then                    #
+    key="${line%% *}"                                     #
+    date=''                                               #
+    title=''                                              #
+    category=''                                           #
+    from=''                                               #
+    ref=''                                                #
+    printf "$delimiter"                                   #
+    delimiter='\0'                                        #
+  fi                                                      #
+  case "${line#* }" in                                    #
+    date*)     echo '【日付】'                            #
+               echo $line | cut -d ' ' -f 3-              #
+               ;;                                         #
+    title*)    echo '【タイトル】'                        #
+               echo $line | cut -d ' ' -f 3-              #
+               ;;                                         #
+    category*) echo '【カテゴリ】'                        #
+               echo $line | cut -d ' ' -f 3-              #
+               ;;                                         #
+    from*)     echo '【担当者】'                          #
+               echo $line | cut -d ' ' -f 3-              #
+               ;;                                         #
+    ref*)      echo '【詳細】'                            #
+               echo $line | cut -d ' ' -f 3-              #
+               ;;                                         #
+    *)         echo "【$(echo $line | cut -d ' ' -f 2)】" #
+               echo $line | cut -d ' ' -f 3-              #
+  esac                                                    #
+done                                                      |
+xargs -0 -I @ sh -c 'cat "'"$Dir_tmp"'/subscriber"  |     #
+                     cut -d " " -f 1                |     #
+                     xargs -I % dmtweet.sh -t % "@"'
 
 
 ######################################################################
