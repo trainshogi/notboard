@@ -4,7 +4,7 @@
 #
 # GETTUATNEWS.SH : 学校掲示板に新着があるか確認する
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-05
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-07
 #
 ######################################################################
 
@@ -24,8 +24,10 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 # === Define the functions for printing usage and exiting ============
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
-	Usage   : ${0##*/}
-	Version : 2019-05-05 20:51:57 JST
+	Usage   : ${0##*/} [options]
+	Options : -n       |--dry-run
+	          -f <file>|--diff-file=<file>
+	Version : 2019-05-07 20:55:02 JST
 	USAGE
   exit 1
 }
@@ -80,7 +82,7 @@ date=''
 title=''
 category=''
 from=''
-ref=''
+ref='http://t-board.office.tuat.ac.jp/$CAMPUS/menu.php'
 
 # === Read options ===================================================
 while :; do
@@ -161,63 +163,76 @@ fi
 [ -n "$charset" ] && chenc=$charset
 # --- 2.掲示板をフィールド形式で保存
 # 1:path 2:key 3:value
-if   [ -n "${CMD_WGET:-}" ]; then              #
-  "$CMD_WGET" -q -O -                          \
-              "$url"                           #
-elif [ -n "${CMD_CURL:-}" ]; then              #
-  "$CMD_CURL" -s                               \
-              "$url"                           #
-fi                                             |
-sed 's/\r//'                                   |
-if   [ -n "${CMD_ICONV:-}" ]; then             #
-  "$CMD_ICONV" -f $chenc -t UTF-8              #
-elif [ -n "${CMD_NKF:-}" ]; then               #
-  case "$chenc" in                             #
-    Shift_JIS) "$CMD_NKF" -Sw80 ;;             #
-    UTF-8)     cat              ;;             #
-  esac                                         #
-fi                                             |
-sed 's#<\(img[^<>]*\)>#<\1/>#g'                |
-# TODO: ここで<p class="standout">内のタグを削除
-parsrx.sh                                      |
-grep -a '^/table/tbody/tr'                     |
-sed 's/\\n//g'                                 |
-while IFS= read -r line; do                    #
-  case "${line%% *}" in                        #
-    */tr)      echo "$key date     $date"      #
-               echo "$key category $category"  #
-               # echo "$key title    $title"     #
-               echo "$key from     $from"      #
-               # echo "$key ref      $ref"       #
-               key=''                          #
-               date=''                         #
-               from=''                         #
-               category=''                     #
-               ref=''                          #
-               title=''                        #
-               ;;                              #
-    */p/span)  category=${line#* }             #
-               ;;                              #
-    */tr/td)   if echo ${line#* }              |
-                  grep '[0-9]\{2\}/[0-9]\{2\}' \
-                  >/dev/null; then             #
-                 date="${line#* }"             #
-               else                            #
-                 from="${line#* }"             #
-               fi                              #
-               ;;                              #
-    */tr/@alt) key=${line#* }                  #
-               ;;                              #
-  esac                                         #
-done                                           >$Tmp/board
+if   [ -n "${CMD_WGET:-}" ]; then                             #
+  "$CMD_WGET" -q -O -                                         \
+              "$url"                                          #
+elif [ -n "${CMD_CURL:-}" ]; then                             #
+  "$CMD_CURL" -s                                              \
+              "$url"                                          #
+fi                                                            |
+sed 's/\r//'                                                  |
+if   [ -n "${CMD_ICONV:-}" ]; then                            #
+  "$CMD_ICONV" -f $chenc -t UTF-8                             #
+elif [ -n "${CMD_NKF:-}" ]; then                              #
+  case "$chenc" in                                            #
+    Shift_JIS) "$CMD_NKF" -Sw80 ;;                            #
+    UTF-8)     cat              ;;                            #
+  esac                                                        #
+fi                                                            |
+sed 's/\r//g'                                                 |
+sed 's#<\(img[^<>]*\)>#<\1/>#g'                               |
+sed 's/</\n</g'                                               |
+sed 's/>/>\n/g'                                               |
+sed 's/^\([^< ]\)/ \1/'                                       |
+awk '/^<p class="standout">/ && in_ptag==0 {in_ptag=1; print} #
+     /^<\/p>/                || in_ptag==0 {in_ptag=0; print} #
+     /^[^<]/                 && in_ptag==1'                   |
+parsrx.sh                                                     |
+grep -a '^/table/tbody/tr'                                    |
+sed 's/\\n//g'                                                |
+grep -v 'p\s*$'                                               |
+while IFS= read -r line; do                                   #
+  case "${line%% *}" in                                       #
+    */tr)      echo "$key date     $date"                     #
+               echo "$key category $category"                 #
+               echo "$key title    $title"                    #
+               echo "$key from     $from"                     #
+               echo "$key ref      $ref"                      #
+               key=''                                         #
+               date=''                                        #
+               from=''                                        #
+               category=''                                    #
+               title=''                                       #
+               ;;                                             #
+    */p/span)  category=${line#* }                            #
+               ;;                                             #
+    */td/p)    if [ -z "$title" ]; then                       #
+                 title="${line#* }"                           #
+               else                                           #
+                 title="$title\\\\n${line#* }"                #
+               fi                                             #
+               ;;                                             #
+    */tr/td)   if echo ${line#* }                             |
+                  grep '[0-9]\{2\}/[0-9]\{2\}'                \
+                  >/dev/null;                  then           #
+                 date="${line#* }"                            #
+               else                                           #
+                 from="${line#* }"                            #
+               fi                                             #
+               ;;                                             #
+    */tr/@alt) key=${line#* }                                 #
+               ;;                                             #
+  esac                                                        #
+done                                                          >$Tmp/board
 
 # === 更新されたの投稿のみ抽出 =======================================
 # --- 1.更新部分の保存
 if [ -e "${file:-}" ]; then
-  cat $Tmp/board                          |
-  nl -nrz                                 |
-  sort -k 2,2 -k 1,1                      |
-  join -v 2 -2 2 -o 2.2 2.3 2.4 "$file" - >$Tmp/news
+  cat $Tmp/board               |
+  nl -nrz                      |
+  sort -k 2,2 -k 1,1           |
+  join -v 2 -2 2 "$file" -     |
+  cut -d ' ' -f 2 --complement >$Tmp/news
 else
   cp $Tmp/board $Tmp/news
 fi

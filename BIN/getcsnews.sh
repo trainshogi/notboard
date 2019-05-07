@@ -4,7 +4,7 @@
 #
 # GETCSNEWS.SH : 情報科掲示板の新着を出力
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-04
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-07
 #
 ######################################################################
 
@@ -27,7 +27,7 @@ print_usage_and_exit () {
 	Usage   : ${0##*/} [options]
 	Options : -n       |--dry-run
 	          -f <file>|--diff-file=<file>
-	Version : 2019-05-04 10:37:21 JST
+	Version : 2019-05-07 20:55:02 JST
 	USAGE
   exit 1
 }
@@ -234,10 +234,11 @@ done                                        >$Tmp/board
 # === 更新されたの投稿のみ抽出 =======================================
 # --- 1.更新部分の保存
 if [ -e "${file:-}" ]; then
-  cat $Tmp/board                          |
-  nl -nrz                                 |
-  sort -k 2,2 -k 1,1                      |
-  join -v 2 -2 2 -o 2.2 2.3 2.4 "$file" - >$Tmp/news
+  cat $Tmp/board               |
+  nl -nrz                      |
+  sort -k 2,2 -k 1,1           |
+  join -v 2 -2 2 "$file" -     |
+  cut -d ' ' -f 2 --complement >$Tmp/news
 else
   cp $Tmp/board $Tmp/news
 fi
