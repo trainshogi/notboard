@@ -27,7 +27,7 @@ print_usage_and_exit () {
 	Usage   : ${0##*/} [options]
 	Options : -n       |--dry-run
 	          -f <file>|--diff-file=<file>
-	Version : 2019-05-07 20:55:02 JST
+	Version : 2019-05-07 21:38:25 JST
 	USAGE
   exit 1
 }
@@ -82,7 +82,7 @@ date=''
 title=''
 category=''
 from=''
-ref='http://t-board.office.tuat.ac.jp/$CAMPUS/menu.php'
+ref="http://t-board.office.tuat.ac.jp/$CAMPUS/menu.php"
 
 # === Read options ===================================================
 while :; do
@@ -224,6 +224,7 @@ while IFS= read -r line; do                                   #
                ;;                                             #
   esac                                                        #
 done                                                          >$Tmp/board
+[ -s $Tmp/board ] || error_exit 1 '掲示板情報が取得できません'
 
 # === 更新されたの投稿のみ抽出 =======================================
 # --- 1.更新部分の保存
@@ -237,7 +238,7 @@ else
   cp $Tmp/board $Tmp/news
 fi
 # --- 2.最新の投稿一覧を保存
-if [ $dryrun -eq 0 -a -n "${file:-}" -a -s $Tmp/news ]; then
+if [ $dryrun -eq 0 -a -n "${file:-}" ]; then
   cat $Tmp/board  |
   cut -d ' ' -f 1 |
   sort            |
