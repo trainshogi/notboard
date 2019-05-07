@@ -25,7 +25,7 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
 	Usage   : ${0##*/}
-	Version : 2019-05-05 20:51:57 JST
+	Version : 2019-05-05 23:05:02 JST
 	USAGE
   exit 1
 }
@@ -100,22 +100,34 @@ while IFS= read -r line; do                               #
   fi                                                      #
   case "${line#* }" in                                    #
     date*)     echo '【日付】'                            #
-               echo $line | cut -d ' ' -f 3-              #
+               printf "%s\n" "$line"                      |
+               cut -d ' ' -f 3-                           |
+               sed 's/\\n/\n/g'                           #
                ;;                                         #
     title*)    echo '【タイトル】'                        #
-               echo $line | cut -d ' ' -f 3-              #
+               printf "%s\n" "$line"                      |
+               cut -d ' ' -f 3-                           |
+               sed 's/\\n/\n/g'                           #
                ;;                                         #
     category*) echo '【カテゴリ】'                        #
-               echo $line | cut -d ' ' -f 3-              #
+               printf "%s\n" "$line"                      |
+               cut -d ' ' -f 3-                           |
+               sed 's/\\n/\n/g'                           #
                ;;                                         #
     from*)     echo '【担当者】'                          #
-               echo $line | cut -d ' ' -f 3-              #
+               printf "%s\n" "$line"                      |
+               cut -d ' ' -f 3-                           |
+               sed 's/\\n/\n/g'                           #
                ;;                                         #
     ref*)      echo '【詳細】'                            #
-               echo $line | cut -d ' ' -f 3-              #
+               printf "%s\n" "$line"                      |
+               cut -d ' ' -f 3-                           |
+               sed 's/\\n/\n/g'                           #
                ;;                                         #
     *)         echo "【$(echo $line | cut -d ' ' -f 2)】" #
-               echo $line | cut -d ' ' -f 3-              #
+               printf "%s\n" "$line"                      |
+               cut -d ' ' -f 3-                           |
+               sed 's/\\n/\n/g'                           #
   esac                                                    #
 done                                                      |
 xargs -0 -I @ sh -c 'cat "'"$Dir_tmp"'/subscriber"  |     #
@@ -139,22 +151,34 @@ while IFS= read -r line; do                               #
   fi                                                      #
   case "${line#* }" in                                    #
     date*)     echo '【日付】'                            #
-               echo $line | cut -d ' ' -f 3-              #
+               printf "%s\n" "$line"                      |
+               cut -d ' ' -f 3-                           |
+               sed 's/\\n/\n/g'                           #
                ;;                                         #
     title*)    echo '【タイトル】'                        #
-               echo $line | cut -d ' ' -f 3-              #
+               printf "%s\n" "$line"                      |
+               cut -d ' ' -f 3-                           |
+               sed 's/\\n/\n/g'                           #
                ;;                                         #
     category*) echo '【カテゴリ】'                        #
-               echo $line | cut -d ' ' -f 3-              #
+               printf "%s\n" "$line"                      |
+               cut -d ' ' -f 3-                           |
+               sed 's/\\n/\n/g'                           #
                ;;                                         #
     from*)     echo '【担当者】'                          #
-               echo $line | cut -d ' ' -f 3-              #
+               printf "%s\n" "$line"                      |
+               cut -d ' ' -f 3-                           |
+               sed 's/\\n/\n/g'                           #
                ;;                                         #
     ref*)      echo '【詳細】'                            #
-               echo $line | cut -d ' ' -f 3-              #
+               printf "%s\n" "$line"                      |
+               cut -d ' ' -f 3-                           |
+               sed 's/\\n/\n/g'                           #
                ;;                                         #
     *)         echo "【$(echo $line | cut -d ' ' -f 2)】" #
-               echo $line | cut -d ' ' -f 3-              #
+               printf "%s\n" "$line"                      |
+               cut -d ' ' -f 3-                           |
+               sed 's/\\n/\n/g'                           #
   esac                                                    #
 done                                                      |
 xargs -0 -I @ sh -c 'cat "'"$Dir_tmp"'/subscriber"  |     #
