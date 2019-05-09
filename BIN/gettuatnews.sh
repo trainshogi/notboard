@@ -4,7 +4,7 @@
 #
 # GETTUATNEWS.SH : 学校掲示板に新着があるか確認する
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-04-29
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-07
 #
 ######################################################################
 
@@ -24,8 +24,10 @@ export UNIX_STD=2003  # to make HP-UX conform to POSIX
 # === Define the functions for printing usage and exiting ============
 print_usage_and_exit () {
   cat <<-USAGE 1>&2
-	Usage   : ${0##*/}
-	Version : 2019-04-29 16:13:00 JST
+	Usage   : ${0##*/} [options]
+	Options : -n       |--dry-run
+	          -f <file>|--diff-file=<file>
+	Version : 2019-05-07 21:38:25 JST
 	USAGE
   exit 1
 }
@@ -54,6 +56,14 @@ elif type wget    >/dev/null 2>&1; then
 else
   error_exit 1 'No HTTP-GET/POST command found.'
 fi
+# --- 2.iconv or nkf
+if   type iconv >/dev/null 2>&1; then
+  CMD_ICONV='iconv'
+elif type nkf   >/dev/null 2>&1; then
+  CMD_NKF='nkf'
+else
+  error_exit 1 'No convert-encoding command found.'
+fi
 
 
 ######################################################################
@@ -64,6 +74,42 @@ fi
 case "$# ${1:-}" in
   '1 -h'|'1 --help'|'1 --version') print_usage_and_exit;;
 esac
+
+# === Initialize parameters ==========================================
+dryrun=0
+key=''
+date=''
+title=''
+category=''
+from=''
+ref="http://t-board.office.tuat.ac.jp/$CAMPUS/menu.php"
+
+# === Read options ===================================================
+while :; do
+  case "${1:-}" in
+    --dry-run|-n)  dryrun=1
+                   shift
+                   ;;
+    --diff-file=*) file=$(printf '%s' "${1#--diff-file=}")
+                   [ -n "${file##*/}" ] || error_exit 1 'Invalid --diff-file option'
+                   dir=$(printf '%s' "${file##*/}")
+                   [ -n "$dir" -a -d "$dir" ] || error_exit 1 "cannot make $file: No such file or directory"
+                   shift 1
+                   ;;
+    -f)            file="${2:-}"
+                   [ -n "${file##*/}" ] || error_exit 1 'Invalid -f option'
+                   dir=$(printf '%s' "${file%/*}")
+                   [ -n "$dir" -a -d "$dir" ] || error_exit 1 "cannot make $file: No such file or directory"
+                   shift 2
+                   ;;
+    --|-)          break
+                   ;;
+    --*|-*)        error_exit 1 'Invalid option'
+                   ;;
+    *)             break
+                   ;;
+  esac
+done
 
 
 ######################################################################
@@ -80,44 +126,127 @@ readonly url=$(case "$CAMPUS" in                                                
                esac                                                                )
 trap 'exit_trap' EXIT HUP INT QUIT PIPE ALRM TERM
 Tmp=`mktemp -d -t "_${0##*/}.$$.XXXXXXXXXXX"` || error_exit 1 'Failed to mktemp'
+# --- 1.サイト情報の解析
+# 掲示板の文字コード解析
+charset=$(if   [ -n "${CMD_WGET:-}" ]; then           #
+            "$CMD_WGET" -q -O -                       \
+                        "$url"                        \
+                        2>&1                          |
+            sed 's/\r//'                              |
+            cut -b 3-                                 |
+            awk '$0=="HTTP/1.1 200 OK"{flg=1} flg==1' |
+            grep '^Content-Type:'                     #
+          elif [ -n "${CMD_CURL:-}" ]; then           #
+            "$CMD_CURL" -sI                           \
+                        "$url"                        |
+            sed 's/\r//'                              |
+            grep '^Content-Type:'                     #
+          fi                                          |
+          sed 's/[; ]\{1,\}/\n/g'                     |
+          grep '^charset'                             |
+          cut -d '=' -f 2                             |
+          awk '$0!="none"'                            )
+if [ -z "$charset" ]; then
+  charset=$(if   [ -n "${CMD_WGET:-}" ]; then #
+              "$CMD_WGET" -q -O -             \
+                          "$url"              #
+            elif [ -n "${CMD_CURL:-}" ]; then #
+              "$CMD_CURL" -s                  \
+                          "$url"              #
+            fi                                |
+            sed 's/\r//'                      |
+            grep 'charset'                    |
+            sed 's/[\";]/\n/g'                |
+            grep charset                      |
+            cut -d '=' -f 2                   )
+fi
+[ -n "$charset" ] && chenc=$charset
+# --- 2.掲示板をフィールド形式で保存
+# 1:path 2:key 3:value
+if   [ -n "${CMD_WGET:-}" ]; then                             #
+  "$CMD_WGET" -q -O -                                         \
+              "$url"                                          #
+elif [ -n "${CMD_CURL:-}" ]; then                             #
+  "$CMD_CURL" -s                                              \
+              "$url"                                          #
+fi                                                            |
+sed 's/\r//'                                                  |
+if   [ -n "${CMD_ICONV:-}" ]; then                            #
+  "$CMD_ICONV" -f $chenc -t UTF-8                             #
+elif [ -n "${CMD_NKF:-}" ]; then                              #
+  case "$chenc" in                                            #
+    Shift_JIS) "$CMD_NKF" -Sw80 ;;                            #
+    UTF-8)     cat              ;;                            #
+  esac                                                        #
+fi                                                            |
+sed 's/\r//g'                                                 |
+sed 's#<\(img[^<>]*\)>#<\1/>#g'                               |
+sed 's/</\n</g'                                               |
+sed 's/>/>\n/g'                                               |
+sed 's/^\([^< ]\)/ \1/'                                       |
+awk '/^<p class="standout">/ && in_ptag==0 {in_ptag=1; print} #
+     /^<\/p>/                || in_ptag==0 {in_ptag=0; print} #
+     /^[^<]/                 && in_ptag==1'                   |
+parsrx.sh                                                     |
+grep -a '^/table/tbody/tr'                                    |
+sed 's/\\n//g'                                                |
+grep -v 'p\s*$'                                               |
+while IFS= read -r line; do                                   #
+  case "${line%% *}" in                                       #
+    */tr)      echo "$key date     $date"                     #
+               echo "$key category $category"                 #
+               echo "$key title    $title"                    #
+               echo "$key from     $from"                     #
+               echo "$key ref      $ref"                      #
+               key=''                                         #
+               date=''                                        #
+               from=''                                        #
+               category=''                                    #
+               title=''                                       #
+               ;;                                             #
+    */p/span)  category=${line#* }                            #
+               ;;                                             #
+    */td/p)    if [ -z "$title" ]; then                       #
+                 title="${line#* }"                           #
+               else                                           #
+                 title="$title\\\\n${line#* }"                #
+               fi                                             #
+               ;;                                             #
+    */tr/td)   if echo ${line#* }                             |
+                  grep '[0-9]\{2\}/[0-9]\{2\}'                \
+                  >/dev/null;                  then           #
+                 date="${line#* }"                            #
+               else                                           #
+                 from="${line#* }"                            #
+               fi                                             #
+               ;;                                             #
+    */tr/@alt) key=${line#* }                                 #
+               ;;                                             #
+  esac                                                        #
+done                                                          >$Tmp/board
+[ -s $Tmp/board ] || error_exit 1 '掲示板情報が取得できません'
 
-# --- 1.掲示板の更新確認 ---------------------------------------------
-flg_changed=0
-if [ -e "$Dir_tmp/boardtuat_latest" ]; then
-  # 前の変更日時と異なっていれば，更新扱い
-  if   [ -n "${CMD_WGET:-}" ]; then                #
-    "$CMD_WGET" -q -O - "$url" 2>&1                #
-  elif [ -n "${CMD_CURL:-}" ]; then                #
-    "$CMD_CURL" -s      "$url"                     #
-  fi                                               |
-  sed 's/\r//'                                     |
-  sed 's#<img\([^>]*\)>#<img\1/>#g'                |
-  parsrx.sh                                        |
-  grep '^/table/tbody/tr/td [0-9]\{2\}/[0-9]\{2\}' >$Tmp/boardtuat_latest.current
-  [ ! -s $Tmp/boardtuat_latest.current ] && error_exit 1 '掲示板の最終更新時刻が取得できません'
-  if ! diff "$Dir_tmp/boardtuat_latest"   \
-            $Tmp/boardtuat_latest.current >/dev/null; then
-    mv $Tmp/boardtuat_latest.current "$Dir_tmp/boardtuat_latest"
-    flg_changed=1
-  fi
+# === 更新されたの投稿のみ抽出 =======================================
+# --- 1.更新部分の保存
+if [ -e "${file:-}" ]; then
+  cat $Tmp/board               |
+  nl -nrz                      |
+  sort -k 2,2 -k 1,1           |
+  join -v 2 -2 2 "$file" -     |
+  cut -d ' ' -f 2 --complement >$Tmp/news
 else
-  # 初めての取得であれば，更新扱い
-  if   [ -n "${CMD_WGET:-}" ]; then                #
-    "$CMD_WGET" -q -O - "$url" 2>&1                #
-  elif [ -n "${CMD_CURL:-}" ]; then                #
-    "$CMD_CURL" -s      "$url"                     #
-  fi                                               |
-  sed 's/\r//'                                     |
-  sed 's#<img\([^>]*\)>#<img\1/>#g'                |
-  parsrx.sh                                        |
-  grep '^/table/tbody/tr/td [0-9]\{2\}/[0-9]\{2\}' >"$Dir_tmp/boardtuat_latest"
-  [ ! -s "$Dir_tmp/boardtuat_latest" ] && error_exit 1 '掲示板の最終更新時刻が取得できません'
-  flg_changed=1
+  cp $Tmp/board $Tmp/news
+fi
+# --- 2.最新の投稿一覧を保存
+if [ $dryrun -eq 0 -a -n "${file:-}" ]; then
+  cat $Tmp/board  |
+  cut -d ' ' -f 1 |
+  sort            |
+  uniq            >"$file"
 fi
 
-
-# === 更新情報を返す =================================================
-echo $flg_changed
+# === 更新情報を出力 =================================================
+cat $Tmp/news
 
 
 ######################################################################
