@@ -28,7 +28,8 @@ print_usage_and_exit () {
 	Options : -n|--dry-run
 	          -s|--not-update
 	          -o|--to-stdout
-	Version : 2019-05-09 21:25:59 JST
+	          -p|--no-publish
+	Version : 2019-05-09 22:03:18 JST
 	USAGE
   exit 1
 }
@@ -62,6 +63,7 @@ esac
 dryrun=0
 noupdate=0
 tostdout=0
+nopublish=0
 date=''
 title=''
 category=''
@@ -78,6 +80,9 @@ while :; do
                      shift 1
                      ;;
     --to-stdout|-o)  tostdout=1
+                     shift 1
+                     ;;
+    --no-publish)    nopublish=1
                      shift 1
                      ;;
     --|-)            break
@@ -162,7 +167,7 @@ sed 's/\\n$//'                                        |
 sed -z 's/$/\n/'                                      |
 while IFS= read -r line; do                           #
   [ $tostdout -eq 1 ] && echo "$line\n"               #
-  [ $dryrun -eq 1 ] && continue                       #
+  [ $dryrun -eq 1 -o $nopublish -eq 1 ] && continue   #
   cat "$Dir_tmp/subscriber"                           |
   cut -d ' ' -f 1                                     |
   xargs -I @ sh -c 'echo "'"$line"'"                  |
