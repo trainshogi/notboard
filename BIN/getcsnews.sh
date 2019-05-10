@@ -4,7 +4,7 @@
 #
 # GETCSNEWS.SH : 情報科掲示板の新着を出力
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-07
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-10
 #
 ######################################################################
 
@@ -27,7 +27,7 @@ print_usage_and_exit () {
 	Usage   : ${0##*/} [options]
 	Options : -n       |--dry-run
 	          -f <file>|--diff-file=<file>
-	Version : 2019-05-07 21:38:25 JST
+	Version : 2019-05-11 01:59:52 JST
 	USAGE
   exit 1
 }
@@ -56,14 +56,6 @@ elif type wget  >/dev/null 2>&1; then
 else
   error_exit 1 'No HTTP-GET/POST command found.'
 fi
-# --- 2.iconv or nkf
-if   type iconv >/dev/null 2>&1; then
-  CMD_ICONV='iconv'
-elif type nkf   >/dev/null 2>&1; then
-  CMD_NKF='nkf'
-else
-  error_exit 1 'No convert-encoding command found.'
-fi
 
 
 ######################################################################
@@ -76,6 +68,7 @@ case "$# ${1:-}" in
 esac
 
 # === Initialize parameters ==========================================
+: ${now:=$(date '+%Y%m%d%H%M%S')}
 dryrun=0
 date=''
 title=''
@@ -115,6 +108,10 @@ done
 # Main Routine
 ######################################################################
 
+# === ログ置場の作成 =================================================
+Dir_log="$Homedir/LOG/getcsnews_sh/$now"
+mkdir -p "$Dir_log"
+
 # === 掲示板情報を取得 ===============================================
 # --- 0.パラメータおよびtmpディレクトリの設定
 readonly url='https://board.cs.tuat.ac.jp' # 掲示板のURL
@@ -123,86 +120,79 @@ trap 'exit_trap' EXIT HUP INT QUIT PIPE ALRM TERM
 Tmp=`mktemp -d -t "_${0##*/}.$$.XXXXXXXXXXX"` || error_exit 1 'Failed to mktemp'
 # --- 1.サイト情報の解析
 # 掲示板のパス
-board_path=$(if   [ -n "${CMD_WGET:-}" ]; then      #
-               "$CMD_WGET" -q -O -                  \
-                           --http-user="$CS_id"     \
-                           --http-password="$CS_pw" \
-                           "$url"                   #
-             elif [ -n "${CMD_CURL:-}" ]; then      #
-               "$CMD_CURL" -s                       \
-                           -u "$CS_id:$CS_pw"       \
-                           "$url"                   #
-             fi                                     |
-             sed 's/\r//'                           |
-             parsrx.sh                              |
-             grep 'new\.html'                       |
-             cut -d ' ' -f 2                        )
+if   [ -n "${CMD_WGET:-}" ]; then      #
+  "$CMD_WGET" -q -O -                  \
+              --http-user="$CS_id"     \
+              --http-password="$CS_pw" \
+              "$url"                   #
+elif [ -n "${CMD_CURL:-}" ]; then      #
+  "$CMD_CURL" -s                       \
+              -u "$CS_id:$CS_pw"       \
+              "$url"                   #
+fi                                     >$Tmp/index.html
+cp $Tmp/index.html "$Dir_log/LV1.index.html"
+board_path=$(cat $Tmp/index.html |
+             sed 's/\r//'        |
+             parsrx.sh           |
+             grep 'new\.html'    |
+             cut -d ' ' -f 2     )
 [ -z "$board_path" ] && error_exit 1 '掲示一覧が見つかりません'
 # 掲示板の文字コード解析
-charset=$(if   [ -n "${CMD_WGET:-}" ]; then           #
-            "$CMD_WGET" -q -O -                       \
-                        --http-user="$CS_id"          \
-                        --http-password="$CS_pw"      \
-                        "$url$board_path"             \
-                        2>&1                          |
-            sed 's/\r//'                              |
-            cut -b 3-                                 |
-            awk '$0=="HTTP/1.1 200 OK"{flg=1} flg==1' |
-            grep '^Content-Type:'                     #
-          elif [ -n "${CMD_CURL:-}" ]; then           #
-            "$CMD_CURL" -sI                           \
-                        -u "$CS_id:$CS_pw"            \
-                        "$url$board_path"             |
-            sed 's/\r//'                              |
-            grep '^Content-Type:'                     #
-          fi                                          |
-          sed 's/[; ]\{1,\}/\n/g'                     |
-          grep '^charset'                             |
-          cut -d '=' -f 2                             |
-          awk '$0!="none"'                            )
+if   [ -n "${CMD_WGET:-}" ]; then           #
+  "$CMD_WGET" -qS --spider -O -             \
+              --http-user="$CS_id"          \
+              --http-password="$CS_pw"      \
+              "$url$board_path"             \
+              2>&1                          |
+  sed 's/\r//'                              |
+  cut -b 3-                                 |
+  awk '$0=="HTTP/1.1 200 OK"{flg=1} flg==1' |
+  grep '^Content-Type:'                     #
+elif [ -n "${CMD_CURL:-}" ]; then           #
+  "$CMD_CURL" -sI                           \
+              -u "$CS_id:$CS_pw"            \
+              "$url$board_path"             |
+  sed 's/\r//'                              |
+  grep '^Content-Type:'                     #
+fi                                          >$Tmp/HEAD.new.html
+cp $Tmp/HEAD.new.html "$Dir_log/LV3.HEAD.index.html"
+charset=$(cat $Tmp/HEAD.new.html  |
+          sed 's/[; ]\{1,\}/\n/g' |
+          grep '^charset'         |
+          cut -d '=' -f 2         |
+          awk '$0!="none"'        )
+if   [ -n "${CMD_WGET:-}" ]; then      #
+  "$CMD_WGET" -q -O -                  \
+              --http-user="$CS_id"     \
+              --http-password="$CS_pw" \
+              "$url$board_path"        #
+elif [ -n "${CMD_CURL:-}" ]; then      #
+  "$CMD_CURL" -s                       \
+              -u "$CS_id:$CS_pw"       \
+              "$url$board_path"        #
+fi                                     >$Tmp/new.html
+cp $Tmp/new.html "$Dir_log/LV1.new.html"
 if [ -z "$charset" ]; then
-  charset=$(if   [ -n "${CMD_WGET:-}" ]; then      #
-              "$CMD_WGET" -q -O -                  \
-                          --http-user="$CS_id"     \
-                          --http-password="$CS_pw" \
-                          "$url$board_path"        #
-            elif [ -n "${CMD_CURL:-}" ]; then      #
-              "$CMD_CURL" -s                       \
-                          -u "$CS_id:$CS_pw"       \
-                          "$url$board_path"        #
-            fi                                     |
-            sed 's/\r//'                           |
-            grep 'charset'                         |
-            sed 's/[\";]/\n/g'                     |
-            grep charset                           |
-            cut -d '=' -f 2                        )
+  charset=$(cat $Tmp/new.html  |
+            sed 's/\r//'       |
+            grep 'charset'     |
+            sed 's/[\";]/\n/g' |
+            grep charset       |
+            cut -d '=' -f 2    )
 fi
 [ -n "$charset" ] && chenc=$charset
 # --- 2.掲示板をフィールド形式で保存
 # 1:path 2:key 3:value
-if   [ -n "${CMD_WGET:-}" ]; then           #
-  "$CMD_WGET" -q -O -                       \
-              --http-user="$CS_id"          \
-              --http-password="$CS_pw"      \
-              "$url$board_path"             #
-elif [ -n "${CMD_CURL:-}" ]; then           #
-  "$CMD_CURL" -s                            \
-              -u "$CS_id:$CS_pw"            \
-              "$url$board_path"             #
-fi                                          |
-sed 's/\r//'                                |
-if   [ -n "${CMD_ICONV:-}" ]; then          #
-  "$CMD_ICONV" -f $chenc -t UTF-8           #
-elif [ -n "${CMD_NKF:-}" ]; then            #
-  case "$chenc" in                          #
-    Shift_JIS) "$CMD_NKF" -Sw80 ;;          #
-    UTF-8)     cat              ;;          #
-  esac                                      #
-fi                                          |
-grep -iv '<meta'                            |
-sed 's#<BR>#<BR/>#g'                        |
-sed 's#^\([^<]\{1,\}\)#<SPAN>\1</SPAN>#'    |
-parsrx.sh                                   |
+cat $Tmp/new.html                        |
+sed 's/\r//'                             |
+iconv -f Shift_JIS -t UTF-8              |
+sed 's#<\(meta[^>]*\)>#<\1/>#i'          |
+sed 's#<BR>#<BR/>#g'                     |
+sed 's#^\([^<]\{1,\}\)#<SPAN>\1</SPAN>#' |
+parsrx.sh                                |
+grep -v '^ '                             >$Tmp/board.name
+cp $Tmp/board.name "$Dir_log/LV2.new.html.name"
+cat $Tmp/board.name                         |
 sed 's/\\n//g'                              |
 while IFS= read -r line; do                 #
   case "${line%% *}" in                     #
@@ -230,6 +220,7 @@ while IFS= read -r line; do                 #
              ;;                             #
   esac                                      #
 done                                        >$Tmp/board
+cp $Tmp/board "$Dir_log/LV3.new.html.field"
 [ -s $Tmp/board ] || error_exit 1 '掲示板情報が取得できません'
 
 # === 更新されたの投稿のみ抽出 =======================================
@@ -243,13 +234,16 @@ if [ -e "${file:-}" ]; then
 else
   cp $Tmp/board $Tmp/news
 fi
+cp $Tmp/news "$Dir_log/LV5.news.field"
 # --- 2.最新の投稿一覧を保存
+[ -n "${file:-}" ] && cp "$file" "$Dir_log/LV3.post_list.old"
 if [ $dryrun -eq 0 -a -n "${file:-}" ]; then
   cat $Tmp/board  |
   cut -d ' ' -f 1 |
   sort            |
   uniq            >"$file"
 fi
+[ -n "${file:-}" ] && cp "$file" "$Dir_log/LV3.post_list.new"
 
 # === 更新情報を出力 =================================================
 cat $Tmp/news

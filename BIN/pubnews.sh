@@ -29,7 +29,7 @@ print_usage_and_exit () {
 	          -s|--not-update
 	          -o|--to-stdout
 	          -p|--no-publish
-	Version : 2019-05-09 22:03:18 JST
+	Version : 2019-05-11 01:59:52 JST
 	USAGE
   exit 1
 }
@@ -60,6 +60,7 @@ case "$# ${1:-}" in
 esac
 
 # === Initialize parameters ==========================================
+: ${now:=$(date '+%Y%m%d%H%M%S')}
 dryrun=0
 noupdate=0
 tostdout=0
@@ -82,7 +83,7 @@ while :; do
     --to-stdout|-o)  tostdout=1
                      shift 1
                      ;;
-    --no-publish)    nopublish=1
+    --no-publish|-p) nopublish=1
                      shift 1
                      ;;
     --|-)            break
@@ -99,24 +100,35 @@ done
 # Main Routine
 ######################################################################
 
+# === ログ置場の作成 =================================================
+Dir_log="$Homedir/LOG/pubnews_sh/$now"
+mkdir -p "$Dir_log"
+
 # === tmpディレクトリの作成 ==========================================
 trap 'exit_trap' EXIT HUP INT QUIT PIPE ALRM TERM
 Tmp=`mktemp -d -t "_${0##*/}.$$.XXXXXXXXXXX"` || error_exit 1 'Failed to mktemp'
 
 # === 配信対象の特定 =================================================
 # --- 1.フォロワの取得および更新
-[ $noupdate -eq 0 ] && update-subscriber.sh -f "$Dir_tmp/subscriber"
+[ $noupdate -eq 0 ] && now=$now \
+                         update-subscriber.sh -f "$Dir_tmp/subscriber"
 
 # === 新着情報を取得して配信 =========================================
 key=''
 delimiter=''
-if [ $dryrun -eq 0 ]; then                            #
-  getcsnews.sh   -f "$Dir_tmp/boardcs_latest"         #
-  gettuatnews.sh -f "$Dir_tmp/boardtuat_latest"       #
-else                                                  #
-  getcsnews.sh   -n -f "$Dir_tmp/boardcs_latest"      #
-  gettuatnews.sh -n -f "$Dir_tmp/boardtuat_latest"    #
-fi                                                    |
+if [ $dryrun -eq 0 ]; then                           #
+  now=$now                                           \
+    getcsnews.sh   -f "$Dir_tmp/boardcs_latest"      #
+  now=$now                                           \
+    gettuatnews.sh -f "$Dir_tmp/boardtuat_latest"    #
+else                                                 #
+  now=$now                                           \
+    getcsnews.sh   -n -f "$Dir_tmp/boardcs_latest"   #
+  now=$now                                           \
+    gettuatnews.sh -n -f "$Dir_tmp/boardtuat_latest" #
+fi                                                   >$Tmp/news.field
+cp $Tmp/news.field "$Dir_log/LV1.news.field"
+cat $Tmp/news.field                                   |
 # 1:group 2:key 3:value                               #
 while IFS= read -r line; do                           #
   if [ "$key" != "${line%% *}" ]; then                #

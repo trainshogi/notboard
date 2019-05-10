@@ -27,7 +27,7 @@ print_usage_and_exit () {
 	Usage   : ${0##*/} [options]
 	Options : -n       |--dry-run
 	          -f <file>|--diff-file=<file>
-	Version : 2019-05-07 21:38:25 JST
+	Version : 2019-05-11 01:59:52 JST
 	USAGE
   exit 1
 }
@@ -56,14 +56,6 @@ elif type wget    >/dev/null 2>&1; then
 else
   error_exit 1 'No HTTP-GET/POST command found.'
 fi
-# --- 2.iconv or nkf
-if   type iconv >/dev/null 2>&1; then
-  CMD_ICONV='iconv'
-elif type nkf   >/dev/null 2>&1; then
-  CMD_NKF='nkf'
-else
-  error_exit 1 'No convert-encoding command found.'
-fi
 
 
 ######################################################################
@@ -76,6 +68,7 @@ case "$# ${1:-}" in
 esac
 
 # === Initialize parameters ==========================================
+: ${now:=$(date '+%Y%m%d%H%M%S')}
 dryrun=0
 key=''
 date=''
@@ -116,6 +109,10 @@ done
 # Main Routine
 ######################################################################
 
+# === ログ置場の作成 =================================================
+Dir_log="$Homedir/LOG/gettuatnews_sh/$now"
+mkdir -p "$Dir_log"
+
 # === 掲示板情報を取得 ===============================================
 # --- 0.パラメータおよびtmpディレクトリの設定 ------------------------
 # 掲示板のURL
@@ -128,57 +125,46 @@ trap 'exit_trap' EXIT HUP INT QUIT PIPE ALRM TERM
 Tmp=`mktemp -d -t "_${0##*/}.$$.XXXXXXXXXXX"` || error_exit 1 'Failed to mktemp'
 # --- 1.サイト情報の解析
 # 掲示板の文字コード解析
-charset=$(if   [ -n "${CMD_WGET:-}" ]; then           #
-            "$CMD_WGET" -q -O -                       \
-                        "$url"                        \
-                        2>&1                          |
-            sed 's/\r//'                              |
-            cut -b 3-                                 |
-            awk '$0=="HTTP/1.1 200 OK"{flg=1} flg==1' |
-            grep '^Content-Type:'                     #
-          elif [ -n "${CMD_CURL:-}" ]; then           #
-            "$CMD_CURL" -sI                           \
-                        "$url"                        |
-            sed 's/\r//'                              |
-            grep '^Content-Type:'                     #
-          fi                                          |
-          sed 's/[; ]\{1,\}/\n/g'                     |
-          grep '^charset'                             |
-          cut -d '=' -f 2                             |
-          awk '$0!="none"'                            )
+if   [ -n "${CMD_WGET:-}" ]; then           #
+  "$CMD_WGET" -qS --spider -O -             \
+              "$url"                        \
+              2>&1                          |
+  sed 's/\r//'                              |
+  cut -b 3-                                 |
+  awk '$0=="HTTP/1.1 200 OK"{flg=1} flg==1' |
+  grep '^Content-Type:'                     #
+elif [ -n "${CMD_CURL:-}" ]; then           #
+  "$CMD_CURL" -sI                           \
+              "$url"                        |
+  sed 's/\r//'                              |
+  grep '^Content-Type:'                     #
+fi                                          >$Tmp/HEAD.resAjax.php
+cp $Tmp/HEAD.resAjax.php "$Dir_log/LV3.HEAD.resAjax.php"
+charset=$(cat $Tmp/HEAD.resAjax.php |
+          sed 's/[; ]\{1,\}/\n/g'   |
+          grep '^charset'           |
+          cut -d '=' -f 2           |
+          awk '$0!="none"'          )
+if   [ -n "${CMD_WGET:-}" ]; then #
+  "$CMD_WGET" -q -O - "$url"      #
+elif [ -n "${CMD_CURL:-}" ]; then #
+  "$CMD_CURL" -s      "$url"      #
+fi                                >$Tmp/resAjax.php
+cp $Tmp/resAjax.php "$Dir_log/LV1.resAjax.php"
 if [ -z "$charset" ]; then
-  charset=$(if   [ -n "${CMD_WGET:-}" ]; then #
-              "$CMD_WGET" -q -O -             \
-                          "$url"              #
-            elif [ -n "${CMD_CURL:-}" ]; then #
-              "$CMD_CURL" -s                  \
-                          "$url"              #
-            fi                                |
-            sed 's/\r//'                      |
-            grep 'charset'                    |
-            sed 's/[\";]/\n/g'                |
-            grep charset                      |
-            cut -d '=' -f 2                   )
+  charset=$(cat $Tmp/resAjax.php |
+            sed 's/\r//'         |
+            grep 'charset'       |
+            sed 's/[\";]/\n/g'   |
+            grep charset         |
+            cut -d '=' -f 2      )
 fi
 [ -n "$charset" ] && chenc=$charset
 # --- 2.掲示板をフィールド形式で保存
 # 1:path 2:key 3:value
-if   [ -n "${CMD_WGET:-}" ]; then                             #
-  "$CMD_WGET" -q -O -                                         \
-              "$url"                                          #
-elif [ -n "${CMD_CURL:-}" ]; then                             #
-  "$CMD_CURL" -s                                              \
-              "$url"                                          #
-fi                                                            |
+cat $Tmp/resAjax.php                                          |
 sed 's/\r//'                                                  |
-if   [ -n "${CMD_ICONV:-}" ]; then                            #
-  "$CMD_ICONV" -f $chenc -t UTF-8                             #
-elif [ -n "${CMD_NKF:-}" ]; then                              #
-  case "$chenc" in                                            #
-    Shift_JIS) "$CMD_NKF" -Sw80 ;;                            #
-    UTF-8)     cat              ;;                            #
-  esac                                                        #
-fi                                                            |
+iconv -f $chenc -t UTF-8                                      |
 sed 's/\r//g'                                                 |
 sed 's#<\(img[^<>]*\)>#<\1/>#g'                               |
 sed 's/</\n</g'                                               |
@@ -187,43 +173,46 @@ sed 's/^\([^< ]\)/ \1/'                                       |
 awk '/^<p class="standout">/ && in_ptag==0 {in_ptag=1; print} #
      /^<\/p>/                || in_ptag==0 {in_ptag=0; print} #
      /^[^<]/                 && in_ptag==1'                   |
-parsrx.sh                                                     |
-grep -a '^/table/tbody/tr'                                    |
-sed 's/\\n//g'                                                |
-grep -v 'p\s*$'                                               |
-while IFS= read -r line; do                                   #
-  case "${line%% *}" in                                       #
-    */tr)      echo "$key date     $date"                     #
-               echo "$key category $category"                 #
-               echo "$key title    $title"                    #
-               echo "$key from     $from"                     #
-               echo "$key ref      $ref"                      #
-               key=''                                         #
-               date=''                                        #
-               from=''                                        #
-               category=''                                    #
-               title=''                                       #
-               ;;                                             #
-    */p/span)  category=${line#* }                            #
-               ;;                                             #
-    */td/p)    if [ -z "$title" ]; then                       #
-                 title="${line#* }"                           #
-               else                                           #
-                 title="$title\\\\n${line#* }"                #
-               fi                                             #
-               ;;                                             #
-    */tr/td)   if echo ${line#* }                             |
-                  grep '[0-9]\{2\}/[0-9]\{2\}'                \
-                  >/dev/null;                  then           #
-                 date="${line#* }"                            #
-               else                                           #
-                 from="${line#* }"                            #
-               fi                                             #
-               ;;                                             #
-    */tr/@alt) key=${line#* }                                 #
-               ;;                                             #
-  esac                                                        #
-done                                                          >$Tmp/board
+parsrx.sh                                                     >$Tmp/board.name
+cp $Tmp/board.name "$Dir_log/LV2.resAjax.php.name"
+cat $Tmp/board.name                                 |
+grep -a '^/table/tbody/tr'                          |
+sed 's/\\n//g'                                      |
+grep -v 'p\s*$'                                     |
+while IFS= read -r line; do                         #
+  case "${line%% *}" in                             #
+    */tr)      echo "$key date     $date"           #
+               echo "$key category $category"       #
+               echo "$key title    $title"          #
+               echo "$key from     $from"           #
+               echo "$key ref      $ref"            #
+               key=''                               #
+               date=''                              #
+               from=''                              #
+               category=''                          #
+               title=''                             #
+               ;;                                   #
+    */p/span)  category=${line#* }                  #
+               ;;                                   #
+    */td/p)    if [ -z "$title" ]; then             #
+                 title="${line#* }"                 #
+               else                                 #
+                 title="$title\\\\n${line#* }"      #
+               fi                                   #
+               ;;                                   #
+    */tr/td)   if echo ${line#* }                   |
+                  grep '[0-9]\{2\}/[0-9]\{2\}'      \
+                  >/dev/null;                  then #
+                 date="${line#* }"                  #
+               else                                 #
+                 from="${line#* }"                  #
+               fi                                   #
+               ;;                                   #
+    */tr/@alt) key=${line#* }                       #
+               ;;                                   #
+  esac                                              #
+done                                                >$Tmp/board
+cp $Tmp/board "$Dir_log/LV3.resAjax.php.field"
 [ -s $Tmp/board ] || error_exit 1 '掲示板情報が取得できません'
 
 # === 更新されたの投稿のみ抽出 =======================================
@@ -237,13 +226,17 @@ if [ -e "${file:-}" ]; then
 else
   cp $Tmp/board $Tmp/news
 fi
+cp $Tmp/news "$Dir_log/LV5.news.field"
 # --- 2.最新の投稿一覧を保存
+[ -n "${file:-}" ] && cp "$file" "$Dir_log/LV3.post_list.old"
 if [ $dryrun -eq 0 -a -n "${file:-}" ]; then
   cat $Tmp/board  |
   cut -d ' ' -f 1 |
   sort            |
   uniq            >"$file"
 fi
+[ -n "${file:-}" ] && cp "$file" "$Dir_log/LV3.post_list.new"
+
 
 # === 更新情報を出力 =================================================
 cat $Tmp/news
