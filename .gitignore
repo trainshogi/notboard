@@ -1,5 +1,6 @@
 /TMP/*
 /LOG/*
 /CONFIG/*
+/DATA/administrator
 !/CONFIG/COMMON.SHLIB.SAMPLE
 !.gitkeep

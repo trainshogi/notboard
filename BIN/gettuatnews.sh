@@ -4,7 +4,7 @@
 #
 # GETTUATNEWS.SH : 学校掲示板に新着があるか確認する
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-07
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-11
 #
 ######################################################################
 
@@ -27,7 +27,7 @@ print_usage_and_exit () {
 	Usage   : ${0##*/} [options]
 	Options : -n       |--dry-run
 	          -f <file>|--diff-file=<file>
-	Version : 2019-05-11 01:59:52 JST
+	Version : 2019-05-11 11:17:02 JST
 	USAGE
   exit 1
 }
@@ -184,8 +184,8 @@ while IFS= read -r line; do                         #
     */tr)      echo "$key date     $date"           #
                echo "$key category $category"       #
                echo "$key title    $title"          #
-               echo "$key from     $from"           #
                echo "$key ref      $ref"            #
+               echo "$key from     $from"           #
                key=''                               #
                date=''                              #
                from=''                              #

@@ -4,7 +4,7 @@
 #
 # GETCSNEWS.SH : 情報科掲示板の新着を出力
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-10
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-11
 #
 ######################################################################
 
@@ -27,7 +27,7 @@ print_usage_and_exit () {
 	Usage   : ${0##*/} [options]
 	Options : -n       |--dry-run
 	          -f <file>|--diff-file=<file>
-	Version : 2019-05-11 01:59:52 JST
+	Version : 2019-05-11 11:17:02 JST
 	USAGE
   exit 1
 }
@@ -199,8 +199,8 @@ while IFS= read -r line; do                 #
     */BR)    echo "$ref date     $date"     #
              echo "$ref category $category" #
              echo "$ref title    $title"    #
-             echo "$ref from     $from"     #
              echo "$ref ref      $url$ref"  #
+             echo "$ref from     $from"     #
              date=''                        #
              from=''                        #
              category=''                    #
