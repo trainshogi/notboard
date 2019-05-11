@@ -2,9 +2,9 @@
 
 ######################################################################
 #
-# UPDATE-SUBSCRIBER.SH : 購読者の更新
+# UPDATE-SUBSCRIBER.SH : 講読者の更新
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-03
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-11
 #
 ######################################################################
 
@@ -27,7 +27,7 @@ print_usage_and_exit () {
 	Usage   : ${0##*/}
 	Options : -n       |--dry-run
 	          -f <file>|--subscriber-file=<file>
-	Version : 2019-05-03 23:24:53 JST
+	Version : 2019-05-11 01:59:52 JST
 	USAGE
   exit 1
 }
@@ -58,6 +58,7 @@ case "$# ${1:-}" in
 esac
 
 # === Initialize parameters ==========================================
+: ${now:=$(date '+%Y%m%d%H%M%S')}
 dryrun=0
 date=''
 title=''
@@ -97,12 +98,19 @@ done
 # Main Routine
 ######################################################################
 
+# === ログ置場の作成 =================================================
+Dir_log="$Homedir/LOG/update_subscriber_sh/$now"
+mkdir -p "$Dir_log"
+
 # === tmpディレクトリの作成 ==========================================
 trap 'exit_trap' EXIT HUP INT QUIT PIPE ALRM TERM
 Tmp=`mktemp -d -t "_${0##*/}.$$.XXXXXXXXXXX"` || error_exit 1 'Failed to mktemp'
 
 # === フォロワの取得および更新 =======================================
-twfer.sh | sed 's/^.*(@\(.*\))$/\1/' | sort >$Tmp/follower
+twfer.sh >$Tmp/twfer
+cp $Tmp/twfer $Dir_log/LV1.twfer.res
+cat $Tmp/twfer | sed 's/^.*(@\(.*\))$/\1/' | sort >$Tmp/follower
+[ -r "${file:-}" ] && cp "$file" "$Dir_log/LV3.subscriber.old"
 if [ -r "${file:-}" ]; then
   diff "$file" $Tmp/follower |
   grep '[<>]'                |
@@ -114,6 +122,7 @@ else
   sed 's/^/subscriber /' $Tmp/follower
   [ $dryrun -eq 0 -a -n "${file:-}" ] && mv $Tmp/follower "$file"
 fi
+[ -r "${file:-}" ] && cp "$file" "$Dir_log/LV5.subscriber.new"
 [ -s "${file:-}" ] || error_exit 1 'No subscriber found'
 
 

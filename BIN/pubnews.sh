@@ -4,7 +4,7 @@
 #
 # PUBNEWS.SH : 新着情報の連絡
 #
-# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-09
+# Written by Shinichi Yanagido (s.yanagido@gmail.com) on 2019-05-11
 #
 ######################################################################
 
@@ -29,7 +29,7 @@ print_usage_and_exit () {
 	          -s|--not-update
 	          -o|--to-stdout
 	          -p|--no-publish
-	Version : 2019-05-09 22:03:18 JST
+	Version : 2019-05-11 11:17:02 JST
 	USAGE
   exit 1
 }
@@ -60,6 +60,7 @@ case "$# ${1:-}" in
 esac
 
 # === Initialize parameters ==========================================
+: ${now:=$(date '+%Y%m%d%H%M%S')}
 dryrun=0
 noupdate=0
 tostdout=0
@@ -82,7 +83,7 @@ while :; do
     --to-stdout|-o)  tostdout=1
                      shift 1
                      ;;
-    --no-publish)    nopublish=1
+    --no-publish|-p) nopublish=1
                      shift 1
                      ;;
     --|-)            break
@@ -99,24 +100,51 @@ done
 # Main Routine
 ######################################################################
 
+# === ログ置場の作成 =================================================
+Dir_log="$Homedir/LOG/pubnews_sh/$now"
+mkdir -p "$Dir_log"
+
 # === tmpディレクトリの作成 ==========================================
 trap 'exit_trap' EXIT HUP INT QUIT PIPE ALRM TERM
 Tmp=`mktemp -d -t "_${0##*/}.$$.XXXXXXXXXXX"` || error_exit 1 'Failed to mktemp'
 
 # === 配信対象の特定 =================================================
 # --- 1.フォロワの取得および更新
-[ $noupdate -eq 0 ] && update-subscriber.sh -f "$Dir_tmp/subscriber"
+[ $noupdate -eq 0 -a $dryrun -eq 0 ] && now=$now \
+                                          update-subscriber.sh -f "$Dir_tmp/subscriber"
 
 # === 新着情報を取得して配信 =========================================
+# --- 1.新着全てを一時保存
+if [ $dryrun -eq 0 ]; then                           #
+  now=$now                                           \
+    getcsnews.sh   -f "$Dir_tmp/boardcs_latest"      #
+  now=$now                                           \
+    gettuatnews.sh -f "$Dir_tmp/boardtuat_latest"    #
+else                                                 #
+  now=$now                                           \
+    getcsnews.sh   -n -f "$Dir_tmp/boardcs_latest"   #
+  now=$now                                           \
+    gettuatnews.sh -n -f "$Dir_tmp/boardtuat_latest" #
+fi                                                   >$Tmp/news.field
+cp $Tmp/news.field "$Dir_log/LV1.news.field"
+# --- 2.管理者に対する通知
+cat $Tmp/news.field                                 |
+cut -d ' ' -f 1                                     |
+uniq                                                |
+wc -l                                               |
+sed 's/^.*$/'"$(date)"'\\n\0件の新着/'              |
+while ISF= read -r line; do                         #
+  [ $tostdout -eq 1 ] && echo "$line"               #
+  [ $dryrun -eq 1 -o $nopublish -eq 1 ] && continue #
+  cat "$Dir_dat/administrator"                      |
+  cut -d ' ' -f 1                                   |
+  xargs -I @ sh -c 'echo "'"$line"'"                |
+                    dmtweet.sh -t @'                #
+done
+# --- 3.講読者に対する通知
 key=''
 delimiter=''
-if [ $dryrun -eq 0 ]; then                            #
-  getcsnews.sh   -f "$Dir_tmp/boardcs_latest"         #
-  gettuatnews.sh -f "$Dir_tmp/boardtuat_latest"       #
-else                                                  #
-  getcsnews.sh   -n -f "$Dir_tmp/boardcs_latest"      #
-  gettuatnews.sh -n -f "$Dir_tmp/boardtuat_latest"    #
-fi                                                    |
+cat $Tmp/news.field                                   |
 # 1:group 2:key 3:value                               #
 while IFS= read -r line; do                           #
   if [ "$key" != "${line%% *}" ]; then                #
@@ -127,33 +155,34 @@ while IFS= read -r line; do                           #
     from=''                                           #
     ref=''                                            #
     printf "$delimiter"                               #
+    printf '%s' '新着メッセージ\n'                    #
+    printf '%s' '____________________\n\n'            #
     delimiter='\n'                                    #
   fi                                                  #
   case "${line#* }" in                                #
-    date*)     printf '%s' "【日付】\n"               #
-               printf '%s' "$line\n"                  |
+    date*)     printf '%s' "$line\n"                  |
                cut -d ' ' -f 3-                       |
                sed -z 's/\n//'                        #
                ;;                                     #
-    title*)    printf '%s' '【タイトル】\n'           #
+    title*)    printf '%s' "$line\n"                  |
+               cut -d ' ' -f 3-                       |
+               sed -z 's/\n$//'                       #
+               ;;                                     #
+    category*) printf '%s' '【'                       #
                printf '%s' "$line\n"                  |
+               cut -d ' ' -f 3-                       |
+               sed -z 's/\n//'                        |
+               sed 's/\\n//'                          #
+               printf '%s' '】\n\n'                   #
+               ;;                                     #
+    from*)     printf '%s' "$line\n"                  |
                cut -d ' ' -f 3-                       |
                sed -z 's/\n//'                        #
                ;;                                     #
-    category*) printf '%s' '【カテゴリ】\n'           #
-               printf '%s' "$line\n"                  |
+    ref*)      printf '%s' "$line\n"                  |
                cut -d ' ' -f 3-                       |
                sed -z 's/\n//'                        #
-               ;;                                     #
-    from*)     printf '%s' '【担当者】\n'             #
-               printf '%s' "$line\n"                  |
-               cut -d ' ' -f 3-                       |
-               sed -z 's/\n//'                        #
-               ;;                                     #
-    ref*)      printf '%s' '【詳細】\n'               #
-               printf '%s' "$line\n"                  |
-               cut -d ' ' -f 3-                       |
-               sed -z 's/\n//'                        #
+               printf '%s' '\n'                       #
                ;;                                     #
     *)         printf '%s '"【$(echo $line            |
                                 cut -d ' ' -f 2)】\n" #
